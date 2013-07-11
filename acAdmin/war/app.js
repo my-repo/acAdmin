@@ -1,28 +1,153 @@
 $(document).ready(function(event) {
 	APP = new AC.App();
+	APP.debug = true;
 	window.onbeforeunload = function(){
 		APP.ws.close();
 	};
-	$("#GO1").on("click", function(){
-		APP.send("Personne", {nom:'Sportes', age:63});
-	});
-	$("#GON").on("click", function(){
-		APP.send("Personnes", [{nom:'Sportes', age:63}, {nom:'Colin', age:62}]);
-	});
+	new AC.Main();
 });
+
+/** **************************************************************** */
 
 String.prototype.escapeHTML = function() {
 	return this.split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;").split("\n").join("<br>");
 }
 
+/** **************************************************************** */
+
+$.Class("AC.HB", {
+	param : function(target){
+		return target ? target.data("param") : null;
+	}
+}, {
+	//
+	init : function() {
+		this.t = [];
+		this.np = 1;
+		this.params = {};
+	},
+
+	append : function(text) {
+		this.t.push(text);
+		return this;
+	},
+
+	prepend : function(text) {
+		this.t.unshift(text);
+		return this;
+	},
+
+	param : function(obj) {
+		if (!obj)
+			return " ";
+		this.params["x-" + this.np] = obj;
+		return " data-param='x-" + (this.np++) + "' ";
+	},
+
+	asString : function(sep) {
+		return this.t.join(sep ? sep : "");
+	},
+
+	flush : function(jqCont) {
+		var html = this.t.join("");
+		jqCont.html(html);
+		var self = this;
+		jqCont.find("[data-param|='x']").each(function() {
+			var x = $(this);
+			var obj = self.params[x.attr("data-param")];
+			x.data("param", obj);
+		});
+		return jqCont;
+	}
+
+});
+
+/** ******************************************************** */
+$.Class("AC.PopForm", {
+	//
+	currentForm : null,
+	isOpen : false,
+	html1 : "<div class='acBtnFermer' id='fermer'></div>"
+		+ "<div id='title' class='acPopFormTitle ac-fontLargeBI'></div>"
+		+ "<div id='innerDiv' class='acPopFormDiv ac-fontMedium'>",
+	html2 : "</div><div class='acBtn acBtnValider ac-fontLargeBI' id='valider'>Valider</div>"
+
+}, {
+
+	init : function(hb, title) {
+		if (!this.constructor._acPopupForm) {
+			this.constructor._acPopupForm = $("#acPopupForm");
+			this.constructor._acMask = $("#acMask");
+		}
+		var _content = this.constructor._acPopupForm;
+		_content.css("z-index", 202);
+		this._content = _content;
+		hb.prepend(this.constructor.html1).append(this.constructor.html2).flush(_content);
+		if (title)
+			_content.find("#title").html(title.escapeHTML());
+		if (!this.constructor.currentForm) {
+			this.constructor._acMask.css("display", "block");
+			var wy = $(window).height() / 5;
+			var y = Math.floor(APP.getScroll().y + wy);
+			_content.css("top", "" + y + "px");
+			APP.opacity0(_content);
+			_content.css("display", "block");
+			setTimeout(function(){
+				APP.opacity1(_content);
+			}, 30);
+		}
+		this.constructor.currentForm = this;
+		this._innerDiv = _content.find("#innerDiv");
+		this._valider = _content.find("#valider");
+		APP.oncl(this, "fermer", this.close);
+		APP.oncl(this, 	this.constructor._acMask);
+	},
+		
+	repaint : function(t){
+		t.flush(this._innerDiv, true);
+	},
+	
+	close : function() {
+		var _content = this.constructor._acPopupForm;
+		var _mask = this.constructor._acMask;
+		APP.opacity0(_content);
+		setTimeout(function(){
+			_content.html("");
+			_content.css("display", "none");
+			_mask.css("display", "none");
+		}, 300);
+		this.constructor.currentForm = null;
+	},
+		
+	enEdition : function() {
+		return false;
+	},
+	
+	enErreur : function() {
+		return this.error;
+	},
+		
+	enable : function(){
+		APP.btnEnable(this._valider, this.enEdition() && !this.enErreur());
+	}
+	
+});
+
+/** ******************************************************** */
+
 $.Class("AC.App", {
 	
 }, {
 	init : function(){
+		this.registered = {};
+		
+		var port = window.location.search.substring(1);
+        this.ws = new WebSocket("ws://localhost:" + port);
 		this.LOG = $("#LOG");
-        this.ws = new WebSocket("ws://localhost:8887");
         this.ws.onopen = function() {
-            console.log("[WebSocket#onopen]\n");
+        	if (APP.debug)
+        		console.log("[WebSocket#onopen]\n");
+        	APP.log("Prêt !");
         }
         this.ws.onmessage = function(e) {
   			var exs = null;
@@ -35,16 +160,24 @@ $.Class("AC.App", {
             if (data && (data.type == "log" || data.type == "err"))
             	APP.log(data.data, data.type == "err");
             else {
-           		var echo = JSON.stringify(data);
-                console.log("[WebSocket#onmessage] : " + echo + "\n");
-                $("#RET").html("Echo : " + echo);            	
+           		if (APP.debug)
+           			console.log("[WebSocket#onmessage] : " + JSON.stringify(data) + "\n");
+           		var handler = APP.registered[data.type];
+           		if (handler)
+           			handler.onmessage(data);
             }
         }
         this.ws.onclose = function() {
-            console.log("[WebSocket#onclose]\n");
+        	if (APP.debug)
+        		console.log("[WebSocket#onclose]\n");
             this.ws = null;
             close();
         }
+	},
+	
+	register : function(type, handler){
+		if (type)
+			this.registered[type] = handler;
 	},
 	
 	send : function(type, obj){
@@ -58,6 +191,150 @@ $.Class("AC.App", {
 			this.LOG.append(cl + text.escapeHTML() + "</div>");
 			this.LOG.scrollTop(this.LOG[0].scrollHeight);
 		}
-	}
+	},
+	
+	getScroll : function() {
+		var x = 0, y = 0;
+		if (typeof (window.pageYOffset) == 'number') {
+			// Netscape compliant
+			y = window.pageYOffset;
+			x = window.pageXOffset;
+		} else if (document.body && (document.body.scrollLeft || document.body.scrollTop)) {
+			// DOM compliant
+			y = document.body.scrollTop;
+			x = document.body.scrollLeft;
+		} else if (document.documentElement
+				&& (document.documentElement.scrollLeft || document.documentElement.scrollTop)) {
+			// IE6 standards compliant mode
+			y = document.documentElement.scrollTop;
+			x = document.documentElement.scrollLeft;
+		}
+		var obj = new Object();
+		obj.x = x;
+		obj.y = y;
+		return obj;
+	},
 
+	CLICK : "click",
+	
+	KEYUP : "keyup input",
+	
+	NOPROPAG : function(event) {
+		event.stopPropagation();
+	},
+
+	oncl : function(caller, id, cb){
+		var idx = typeof id == "string" ? caller._content.find("#" + id) : id;
+		idx.off(this.CLICK).on(this.CLICK, {cb:cb, caller:caller}, function(event){
+			APP.NOPROPAG(event);
+			if (event.data.cb)
+				event.data.cb.call(event.data.caller, $(event.currentTarget), event);
+		});			
+	},
+
+	opacity1 : function(target){
+		target.css("opacity", 1);
+		target.css("filter", "alpha(opacity=100)")
+	},
+
+	opacity0 : function(target){
+		target.css("opacity", 0);
+		target.css("filter", "alpha(opacity=0)")
+	},
+
+	opacity07 : function(target){
+		target.css("opacity", 0.7);
+		target.css("filter", "alpha(opacity=70)")
+	},
+
+	btnEnable : function(cmp, enable) {
+		if (!cmp)
+			return;
+		if (enable)
+			cmp.removeClass('ui-disabled');
+		else
+			cmp.addClass('ui-disabled');
+	},
+
+});
+
+/*******************************************************/
+AC.PopForm("AC.Test", {
+	html : "<div class='ac-fontMediumB acBtn' id='GO1'>GO-une</div>"
+		+ "<div class='ac-fontMediumB acBtn' id='GON'>GO-liste</div>"
+		
+}, {
+	init : function(){
+		var hb = new AC.HB();
+		hb.append(this.constructor.html);
+		this._super(hb, "Test PopForm");
+		APP.oncl(this, "GO1", function(target){
+    		APP.send("Personne", {nom:'Sportes', age:63});
+    	});
+		APP.oncl(this, "GON", function(){
+    		APP.send("Personnes", [{nom:'Sportes', age:63}, {nom:'Colin', age:62}]);
+    	});
+		APP.register("Personne", this);
+		APP.register("Personnes", this);
+	},
+	
+	onmessage : function(data){
+		var x = JSON.stringify(data);
+		APP.log(x, data.type == "Personne");
+	},
+	
+	close : function(){
+		APP.register("Personne");
+		APP.register("Personnes");
+		this._super();
+	}
+});
+
+/*******************************************************/
+AC.PopForm("AC.Config", {
+	html : "<div class='ac-fontMediumB acBtn' id='GO1'>GO-une</div>"
+		+ "<div class='ac-fontMediumB acBtn' id='GON'>GO-liste</div>"
+		
+}, {
+	init : function(){
+		var hb = new AC.HB();
+		hb.append(this.constructor.html);
+		this._super(hb, "Test PopForm");
+		APP.oncl(this, "GO1", function(target){
+    		APP.send("Personne", {nom:'Sportes', age:63});
+    	});
+		APP.oncl(this, "GON", function(){
+    		APP.send("Personnes", [{nom:'Sportes', age:63}, {nom:'Colin', age:62}]);
+    	});
+		APP.register("Personne", this);
+		APP.register("Personnes", this);
+	},
+	
+	onmessage : function(data){
+		var x = JSON.stringify(data);
+		APP.log(x, data.type == "Personne");
+	},
+	
+	close : function(){
+		APP.register("Personne");
+		APP.register("Personnes");
+		this._super();
+	}
+});
+
+/*******************************************************/
+$.Class("AC.Main", {
+	
+}, {
+	init : function(){
+		this._content = $("body");
+		APP.oncl(this, "configuration", function(){
+			new AC.Config();
+		});
+		APP.oncl(this, "test", function(){
+			new AC.Test();
+		});
+		APP.log("Initialisation ...");
+	}
+	
 });

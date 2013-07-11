@@ -26,13 +26,15 @@ public class Event<T> {
 		gson = g.create();
 	}
 
-	public static void register(String type, Class<?> clazz){
+	public static void register(Class<?> clazz){
+		String type = clazz.getSimpleName();
 		types.put(type,  clazz);
 	}
 
-	public static void register(String type, Class<?> clazz, Type colType){
+	public static void register(Class<?> clazz, Type typeToken){
+		String type = clazz.getSimpleName();
 		types.put(type,  clazz);
-		ctypes.put(type,  colType);
+		ctypes.put(type, typeToken);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -52,13 +54,11 @@ public class Event<T> {
 			}
 			if (eltData != null && eltData.isJsonArray()) {
 				Type t = ctypes.get(type);
-				if (t != null) {
+				if (t != null)
 					return new Event(type, (ArrayList)context.deserialize(eltData, t));
-				}
 			}
 			return null;
 		}
-		
 	}
 
 	public static String serial(String data){
@@ -69,19 +69,15 @@ public class Event<T> {
 		if (data == null)
 			return null;
 		String type = data.getClass().getSimpleName();
-		Class<?> clazz = types.get(type);
-		if (clazz == null)
-			return null;
 		String x;
-		if (ctypes.get(type) == null) {
+		try {
+			Class<?> clazz = types.get(type);
+			if (clazz == null)
+				x = gson.toJson(data);
+			Field f = clazz.getDeclaredField("list");
+			x = gson.toJson(f.get(data));
+		} catch (Exception e) {
 			x = gson.toJson(data);
-		} else {
-			try {
-				Field f = clazz.getDeclaredField("list");
-				x = gson.toJson(f.get(data));
-			} catch (Exception e) {
-				return null;
-			}
 		}
 		StringBuffer sb = new StringBuffer();
 		sb.append("{\"type\":\"").append(type).append("\", \"data\":").append(x).append("}");

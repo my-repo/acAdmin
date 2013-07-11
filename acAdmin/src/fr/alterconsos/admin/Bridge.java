@@ -40,17 +40,12 @@ public class Bridge extends WebSocketServer {
 	public void onClose(WebSocket conn, int code, String reason, boolean remote) {
 		theMain.onEnd();
 		System.out.println("Fin de session");
-		Config.get().save();
 		System.exit(0);
 	}
 
 	@Override
 	public void onMessage( WebSocket conn, String message ) {
-		conn.send("reçu : [" + message + "]");
-		if ("w".equals(message)) {
-			try { Thread.sleep(2000); } catch (InterruptedException e) { }
-			conn.send("plus tard !!!");
-		}
+		// conn.send("reçu : [" + message + "]");
 		Event.process(message);
 	}
 
@@ -81,14 +76,10 @@ public class Bridge extends WebSocketServer {
 			theConn.send("{\"type\":\"" + (err ? "err" : "log") + "\", \"data\":" + s + "}");
 	}
 
-	public static class Config {
-		public static Config config = null;
-		
-		String dir = "D:/acAdmin";
-		String[] lines = new String[0];
-		String pwd = "23452345";
-		
-		public static Config get(){
+	public static abstract class AConfig {
+		public static AConfig config = null;
+				
+		public static AConfig get(Class<?> clazz){
 			if (config != null)
 				return config;
 			try {
@@ -99,11 +90,15 @@ public class Bridge extends WebSocketServer {
 					byte[] buf = new byte[l];
 					is.read(buf);
 					is.close();
-					config = new Gson().fromJson(new String(buf, "UTF-8"), Config.class);
+					config = (AConfig)new Gson().fromJson(new String(buf, "UTF-8"), clazz);
 					return config;
 				}
 			} catch (Exception e){ }
-			config = new Config();
+			try {
+				config = (AConfig) clazz.newInstance();
+			} catch (Exception e) {
+				return null;
+			}
 			config.save();
 			return config;
 		}
@@ -121,18 +116,17 @@ public class Bridge extends WebSocketServer {
 		}
 	}
 	
-	public static void start(IMain main) throws InterruptedException , IOException {
+	public static void start(IMain main, int port) throws InterruptedException , IOException {
 		theMain = main;
 		WebSocketImpl.DEBUG = false;
-		int port = 8887; // 843 flash policy port
 		theBridge = new Bridge(port);
 		theBridge.start();
-		String url = "file:///" + new java.io.File(".").getCanonicalPath().replace('\\', '/') + "/war/test.html";
+		String url = "file:///" + new java.io.File(".").getCanonicalPath().replace('\\', '/') 
+				+ "/war/app.html?" + port;
 		String x = System.getProperty("user.home") + "\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe  --app=";
 		// String x = "rundll32 url.dll,FileProtocolHandler ";
         Runtime.getRuntime().exec(x + url);     
 		System.out.println("Début de session, port: " + theBridge.getPort());
-		System.out.println("Config :\n" + new Gson().toJson(Config.get()));
 	}
 
 }
