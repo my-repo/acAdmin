@@ -140,10 +140,14 @@ $.Class("AC.App", {
 }, {
 	init : function(){
 		this.registered = {};
+		this.callId = 0;
+		
+		this._maskA = $("#acMaskA");
+		this._attente = $("#acAttente");
+		this.LOG = $("#LOG");
 		
 		var port = window.location.search.substring(1);
         this.ws = new WebSocket("ws://localhost:" + port);
-		this.LOG = $("#LOG");
         this.ws.onopen = function() {
         	if (APP.debug)
         		console.log("[WebSocket#onopen]\n");
@@ -151,20 +155,33 @@ $.Class("AC.App", {
         }
         this.ws.onmessage = function(e) {
   			var exs = null;
-  			var data = null;
+  			var msg = null;
       		try {
-       	   		data = $.parseJSON(e.data);
+       	   		msg = $.parseJSON(e.data);
        		} catch(ex){ 
        			exs = ex.toString();
        		}
-            if (data && (data.type == "log" || data.type == "err"))
-            	APP.log(data.data, data.type == "err");
+            if (msg && (msg.type == "log" || msg.type == "err"))
+            	APP.log(msg.data, msg.type == "err");
             else {
            		if (APP.debug)
-           			console.log("[WebSocket#onmessage] : " + JSON.stringify(data) + "\n");
-           		var handler = APP.registered[data.type];
-           		if (handler)
-           			handler.onmessage(data);
+           			console.log("[WebSocket#onmessage] : " + JSON.stringify(msg) + "\n");
+           		if (msg.data && msg.data.callId){
+           			if (!(msg.data.callId === APP.callId) || !APP.rpcCb)
+           				return;
+           			APP.unmaskScreen();
+           			var cb = APP.rpcCb;
+           			APP.rpcCb = null;
+           			if (msg.type == "exc"){
+           				APP.log(msg.data.message, true);
+       					cb(1, msg.data.message);
+           			} else
+           				cb(0, msg.data);
+           		} else {
+	           		var handler = APP.registered[data.type];
+	           		if (handler)
+	           			handler.onmessage(data);
+	           	}
             }
         }
         this.ws.onclose = function() {
@@ -180,11 +197,62 @@ $.Class("AC.App", {
 			this.registered[type] = handler;
 	},
 	
-	send : function(type, obj){
+	send : function(type, obj, cb){
+		if (cb){
+			this.callId++;
+			obj.callId = this.callId;
+			this.rpcCb = cb;
+			this.maskScreen();
+		} else
+			this.rpcCb = null;
 		var arg = JSON.stringify({type:type, data:obj});
         this.ws.send(arg);
 	},
-	
+		
+	maskScreen : function() {
+		this._attente.css("display", "none");
+		this.attente = false;
+		this._maskA.css("display", "block");
+		var self = this;
+		this.timerAttente = setTimeout(function() {
+			self.timerAttente = null;
+			self.attente = true;
+			var h = $(window).height();
+			var w = $(window).width();
+			self._attente.css("top", "" + Math.floor((h - 110) / 2) + "px");
+			self._attente.css("left", "" + Math.floor((w - 170) / 2) + "px");
+			self.opacity0(APP._attente);
+			self._attente.css("display", "block");
+			self.oncl(self, APP._attente, function(){
+				APP.unmaskScreen();
+				var cb = APP.rpcCb;
+				if (cb) {
+					APP.rpcCb = null;
+					cb(-1);
+				}
+			});
+			setTimeout(function() {
+				self.opacity07(APP._attente);
+			}, 20);
+		}, 500);
+	},
+
+	unmaskScreen : function() {
+		if (this.timerAttente) {
+			clearTimeout(this.timerAttente);
+			this.timerAttente = null;
+		}
+		if (this.attente) {
+			this.attente = false;
+			this.opacity0(this._attente);
+			var self = this;
+			setTimeout(function() {
+				self._attente.css("display", "none");
+			}, 200);
+		}
+		this._maskA.css("display", "none");
+	},
+
 	log : function(text, err){
 		if (text) {
 			var cl = err ? "<div class='ac-fontMedium2B acErr'>" : "<div class='ac-fontMedium2'>";
@@ -292,32 +360,84 @@ AC.PopForm("AC.Test", {
 
 /*******************************************************/
 AC.PopForm("AC.Config", {
-	html : "<div class='ac-fontMediumB acBtn' id='GO1'>GO-une</div>"
-		+ "<div class='ac-fontMediumB acBtn' id='GON'>GO-liste</div>"
+	html : "<div class='ac-fontMediumB acBtn' id='syncBtn'>Sync</div>"
+		+ "<div class='ac-fontMedium' id='dir'></div>"
+		+ "<div class='ac-fontMedium' id='subdirs'></div>"
 		
 }, {
 	init : function(){
 		var hb = new AC.HB();
 		hb.append(this.constructor.html);
-		this._super(hb, "Test PopForm");
-		APP.oncl(this, "GO1", function(target){
-    		APP.send("Personne", {nom:'Sportes', age:63});
-    	});
-		APP.oncl(this, "GON", function(){
-    		APP.send("Personnes", [{nom:'Sportes', age:63}, {nom:'Colin', age:62}]);
-    	});
-		APP.register("Personne", this);
-		APP.register("Personnes", this);
+		this._super(hb, "Configuration");
+		this.reload();
+		APP.oncl(this, "syncBtn", this.reload);
 	},
 	
+	reload : function(){
+		var self = this;
+		APP.send("ReqConfig", {}, function(err, data){
+			if (!err)
+				self.display(data);
+		});
+	},
+	
+	getSubDirs : function(){
+		var self = this;
+		APP.send("ReqConfigDirs", {}, function(err, data){
+			if (!err)
+				self.displayDirs(data);
+			else
+				self.displayDirs({dirs:[]});
+		});	
+	},
+	
+	updConfigDir : function(dir){
+		var self = this;
+		APP.send("UpdConfigDir", {dir:dir}, function(err, data){
+			if (!err)
+				self.display(data);
+		});			
+	},
+	
+	display : function(data){
+		this.config = data;
+		var t = new AC.HB();
+		t.append("<div class='acPath'>");
+		for(var i = 0; i < data.dir.length; i++){
+			if (i)
+				t.append("<div class='acDirsep ac-fontMedium2'>/</div>");
+			t.append("<div class='acDirname ac-fontMedium2B' data-index='" + i + "'>" + data.dir[i] + "</div>");
+		}
+		t.append("</div>");
+		t.flush(this._content.find("#dir"));
+		APP.oncl(this, this._content.find(".acDirname"), function(target){
+			var n = parseInt(target.attr("data-index"), 10);
+			this.updConfigDir(data.dir.slice(0, n + 1));
+		});
+		this.getSubDirs();
+	},
+
+	displayDirs : function(data){
+		this.subdirs = data.dirs;
+		var t = new AC.HB();
+		for(var i = 0; i < data.dirs.length; i++){
+			t.append("<div class='acDirname2 ac-fontMedium2B' data-index='" + i + "'>" + data.dirs[i] + "</div>");
+		}
+		t.flush(this._content.find("#subdirs"));
+		APP.oncl(this, this._content.find(".acDirname2"), function(target){
+			var n = parseInt(target.attr("data-index"), 10);
+			var nd = [];
+			for(var i = 0, d = null; d = this.config.dir[i]; i++)
+				nd.push(d);
+			nd.push(this.subdirs[n]);
+			this.updConfigDir(nd);
+		});
+	},
+
 	onmessage : function(data){
-		var x = JSON.stringify(data);
-		APP.log(x, data.type == "Personne");
 	},
 	
 	close : function(){
-		APP.register("Personne");
-		APP.register("Personnes");
 		this._super();
 	}
 });

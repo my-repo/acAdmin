@@ -14,53 +14,173 @@ public class Main implements IMain {
 
 	public void onEnd() {
 		System.out.println("Browser déconnecté");
-		config().save();
-	}
-
-	public void beforeInit() {
-
-	}
-
-	public static class Personne implements IEvent {
-		String nom;
-		int age;
-
-		public void process() {
-			String s = nom + " - " + age;
-			Bridge.err(s);
-			Bridge.send(this);
+		try {
+			config().save();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 
-	public Config config() {
-		return (Config) Bridge.AConfig.get(Config.class);
+	public void beforeInit() throws Exception {
+		Event.register(ReqConfig.class);
+		Event.register(UpdConfigUrl.class);
+		Event.register(ReqConfigDirs.class);
+		Event.register(UpdConfigDir.class);
+		
+//		Event.register(Personne.class);
+//		Event.register(Personnes.class,
+//				new TypeToken<ArrayList<Personne>>() {
+//				}.getType());
+		Config cfg = config();
+		FS fs = new FS(cfg.dir);
+		if (fs.dir().length != cfg.dir.length){
+			cfg.dir = fs.dir();
+			cfg.save();
+		}
+		System.out.println("Config :\n" + new Gson().toJson(config()));
+	}
+
+	public Config config() throws Exception {
+		try {
+			return (Config) Bridge.AConfig.get(Config.class);
+		} catch (Exception e) {
+			throw e;
+		}
 	}
 
 	public static class Config extends Bridge.AConfig {
-		String dir = "D:/acAdmin";
+		int callId = 0;
+		String[] dir = { "D:", "temp", "dump1", "titi" };
 		String pwdP = "";
 		String pwdT = "1234";
 		String pwdD = "1234";
 		String urlP = "https://alterconsos.appspot.com/";
 		String urlT = "http://192.168.0.1/";
 		String urlD = "http://192.168.0.1:8080/";
+		
 	}
 
-	public static class Personnes implements IEvent {
-		ArrayList<Personne> list;
+	public static class UpdConfigDir implements IEvent {
+		int callId;
+		String[] dir;
+
+		@Override
+		public void process() {	
+			try {
+				Config cfg = main.config();
+				FS fs = new FS(dir);
+				cfg.dir = fs.dir();
+				cfg.callId = callId;
+				cfg.save();
+				Bridge.send(cfg);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	public static class UpdConfigUrl implements IEvent {
+		int callId;
+		String url;
+		String pwd;
+		String ptd;
 
 		@Override
 		public void process() {
-			StringBuffer sb = new StringBuffer();
-			for (int i = 0; i < list.size(); i++) {
-				Personne p = list.get(i);
-				String s = i + " / " + p.nom + " - " + p.age;
-				sb.append(s + "\n");
+			try {
+				Config cfg = main.config();
+				if ("P".equals(ptd)) {
+					cfg.urlP = url;
+					cfg.pwdP = pwd;
+				} else if ("T".equals(ptd)) {
+					cfg.urlT = url;
+					cfg.pwdT = pwd;
+				} else if ("D".equals(ptd)) {
+					cfg.urlD = url;
+					cfg.pwdD = pwd;
+				}
+				cfg.save();
+				Bridge.sendAck(callId);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
 			}
-			Bridge.log(sb.toString());
-			Bridge.send(this);
 		}
 	}
+
+	public static class ReqConfig implements IEvent {
+		int callId;
+
+		@Override
+		public void process() {
+			try {
+				Config cfg = main.config();
+				cfg.callId = callId;
+				FS fs = new FS(cfg.dir);
+				String[] dx = fs.dir();
+				if (dx.length != cfg.dir.length) {
+					cfg.dir = dx;
+					cfg.save();
+				}
+				Bridge.send(cfg);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	public static class Dirs {
+		int callId;
+		String[] dirs;
+	}
+	
+	public static class ReqConfigDirs implements IEvent {
+		int callId;
+
+		@Override
+		public void process() {
+			try {
+				Config cfg = main.config();
+				FS fs = new FS(cfg.dir);
+				Dirs d = new Dirs();
+				d.dirs = fs.subdirs();
+				d.callId = callId;
+				Bridge.send(d);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	/*******************************************************/
+	
+//	public static class Personne implements IEvent {
+//		String nom;
+//		int age;
+//
+//		public void process() {
+//			String s = nom + " - " + age;
+//			Bridge.err(s);
+//			Bridge.send(this);
+//		}
+//	}
+//
+//	public static class Personnes implements IEvent {
+//		ArrayList<Personne> list;
+//
+//		@Override
+//		public void process() {
+//			StringBuffer sb = new StringBuffer();
+//			for (int i = 0; i < list.size(); i++) {
+//				Personne p = list.get(i);
+//				String s = i + " / " + p.nom + " - " + p.age;
+//				sb.append(s + "\n");
+//			}
+//			Bridge.log(sb.toString());
+//			Bridge.send(this);
+//		}
+//	}
+
+	/*******************************************************/
 
 	public static void main(String[] args) {
 		try {
@@ -71,11 +191,6 @@ public class Main implements IMain {
 				} catch (Exception e) {
 				}
 			}
-			Event.register(Personne.class);
-			Event.register(Personnes.class,
-					new TypeToken<ArrayList<Personne>>() {
-					}.getType());
-			System.out.println("Config :\n" + new Gson().toJson(main.config()));
 			main.beforeInit();
 			Bridge.start(main, port);
 		} catch (Exception e) {
