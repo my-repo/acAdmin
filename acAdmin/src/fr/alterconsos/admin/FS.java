@@ -89,21 +89,20 @@ public class FS {
 		return lst.toArray(new File[lst.size()]);
 	}
 		
-	public boolean newDir(String name){
+	public void newDir(String name) throws Exception{
 		if (name == null || name.length() == 0)
-			return false;
+			throw new Exception("Nom absent");
 		File d = new File(dir[dir.length - 1], name);
 		if (d.isFile())
-			return false;
+			throw new Exception("Un fichier avec ce nom existe déjà");
 		if (!d.exists() && !d.mkdir())
-			return false;
+			throw new Exception("Création refusée");
 		File[] nd = new File[dir.length + 1];
 		for(int i = 0; i < dir.length; i++)
 			nd[i] = dir[i];
 		nd[dir.length] = d;
 		this.dir = nd;
 		this.subdirs = d.listFiles(filter);
-		return true;
 	}
 	
 	/*

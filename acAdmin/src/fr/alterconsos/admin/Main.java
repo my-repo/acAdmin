@@ -26,11 +26,13 @@ public class Main implements IMain {
 		Event.register(UpdConfigUrl.class);
 		Event.register(ReqConfigDirs.class);
 		Event.register(UpdConfigDir.class);
+		Event.register(UpdConfigNewDir.class);
 		
 //		Event.register(Personne.class);
 //		Event.register(Personnes.class,
 //				new TypeToken<ArrayList<Personne>>() {
 //				}.getType());
+		
 		Config cfg = config();
 		FS fs = new FS(cfg.dir);
 		if (fs.dir().length != cfg.dir.length){
@@ -69,6 +71,26 @@ public class Main implements IMain {
 			try {
 				Config cfg = main.config();
 				FS fs = new FS(dir);
+				cfg.dir = fs.dir();
+				cfg.callId = callId;
+				cfg.save();
+				Bridge.send(cfg);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	public static class UpdConfigNewDir implements IEvent {
+		int callId;
+		String newdir;
+
+		@Override
+		public void process() {	
+			try {
+				Config cfg = main.config();
+				FS fs = new FS(cfg.dir);
+				fs.newDir(newdir);
 				cfg.dir = fs.dir();
 				cfg.callId = callId;
 				cfg.save();

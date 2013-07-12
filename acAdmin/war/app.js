@@ -70,11 +70,11 @@ $.Class("AC.PopForm", {
 	html1 : "<div class='acBtnFermer' id='fermer'></div>"
 		+ "<div id='title' class='acPopFormTitle ac-fontLargeBI'></div>"
 		+ "<div id='innerDiv' class='acPopFormDiv ac-fontMedium'>",
-	html2 : "</div><div class='acBtn acBtnValider ac-fontLargeBI' id='valider'>Valider</div>"
+	html2 : "</div><div class='acBtn acBtnValider ac-fontLargeBI' id='valider'>"
 
 }, {
 
-	init : function(hb, title) {
+	init : function(hb, title, valider) {
 		if (!this.constructor._acPopupForm) {
 			this.constructor._acPopupForm = $("#acPopupForm");
 			this.constructor._acMask = $("#acMask");
@@ -82,13 +82,17 @@ $.Class("AC.PopForm", {
 		var _content = this.constructor._acPopupForm;
 		_content.css("z-index", 202);
 		this._content = _content;
-		hb.prepend(this.constructor.html1).append(this.constructor.html2).flush(_content);
+		hb.prepend(this.constructor.html1);
+		if (valider)
+			hb.append(this.constructor.html2).append(valider).append("</div>");
+		else
+			hb.append("</div>");
+		hb.flush(_content);
 		if (title)
 			_content.find("#title").html(title.escapeHTML());
 		if (!this.constructor.currentForm) {
 			this.constructor._acMask.css("display", "block");
-			var wy = $(window).height() / 5;
-			var y = Math.floor(APP.getScroll().y + wy);
+			var y = APP._work.offset().top;
 			_content.css("top", "" + y + "px");
 			APP.opacity0(_content);
 			_content.css("display", "block");
@@ -144,6 +148,7 @@ $.Class("AC.App", {
 		
 		this._maskA = $("#acMaskA");
 		this._attente = $("#acAttente");
+		this._work = $("#acWork");
 		this.LOG = $("#LOG");
 		
 		var port = window.location.search.substring(1);
@@ -172,7 +177,7 @@ $.Class("AC.App", {
            			APP.unmaskScreen();
            			var cb = APP.rpcCb;
            			APP.rpcCb = null;
-           			if (msg.type == "exc"){
+           			if (msg.type == "ErrMsg"){
            				APP.log(msg.data.message, true);
        					cb(1, msg.data.message);
            			} else
@@ -360,8 +365,10 @@ AC.PopForm("AC.Test", {
 
 /*******************************************************/
 AC.PopForm("AC.Config", {
-	html : "<div class='ac-fontMediumB acBtn' id='syncBtn'>Sync</div>"
+	html : "<div class='ac-fontMediumB acBtn acFLR' id='syncBtn'>Sync</div>"
 		+ "<div class='ac-fontMedium' id='dir'></div>"
+		+ "<div><div class='acNewdirInp'><input type='text' id='newdirInp'></input></div>"
+		+ "<div class='ac-fontMediumB acBtn' id='newdirBtn'>Nouveau</div></div>"
 		+ "<div class='ac-fontMedium' id='subdirs'></div>"
 		
 }, {
@@ -371,6 +378,31 @@ AC.PopForm("AC.Config", {
 		this._super(hb, "Configuration");
 		this.reload();
 		APP.oncl(this, "syncBtn", this.reload);
+		this._newdirInp = this._content.find("#newdirInp");
+		this._newdirBtn = this._content.find("#newdirBtn");
+		APP.oncl(this, this._newdirBtn, this.newdir);
+		var self = this;
+		this._newdirInp.off(APP.KEYUP).on(APP.KEYUP, function(event){
+			APP.NOPROPAG(event);
+			if (event.keyCode == 13)
+				self.newdir();
+			else {
+				self.newdirName = self._newdirInp.val();
+				APP.btnEnable(self._newdirBtn, self.newdirName);
+			}
+		});
+	},
+	
+	newdir : function(){
+		var self = this;
+		APP.send("UpdConfigNewDir", {newdir:this.newdirName}, function(err, data){
+			if (!err) {
+				self.newdirName = "";
+				self._newdirInp.val("");
+				APP.btnEnable(self._newdirBtn, false);
+				self.display(data);
+			}
+		});
 	},
 	
 	reload : function(){
