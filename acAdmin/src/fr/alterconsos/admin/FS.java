@@ -6,13 +6,34 @@ import java.util.ArrayList;
 
 public class FS {
 	
+	public static String[] path2Strings(String path){
+		String p = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+		return p.split("/");
+	}
+	
 	private static FileFilter filter = new FileFilter() {
 		@Override
 		public boolean accept(File pathname) {
 			return pathname.isDirectory();
 		}
 	};
-	
+
+	private static FileFilter filterZip = new FileFilter() {
+		@Override
+		public boolean accept(File pathname) {
+			if (pathname.isFile()){
+				String n = pathname.getName();
+				if (!n.endsWith(".zip") || n.length() < 23)
+					return false;
+				int i = n.indexOf("_");
+				if (i == -1 || i + 22 != n.length())
+					return false;
+				return true;
+			}
+			return false;
+		}
+	};
+
 	private File[] dir;
 	private File[] subdirs;
 	
@@ -36,6 +57,14 @@ public class FS {
 		return d;
 	}
 	
+	public String path(){
+		String[] d = dir();
+		StringBuffer sb = new StringBuffer();
+		for(String s : d)
+			sb.append(s).append("/");
+		return sb.toString();
+	}
+	
 	public String[] subdirs(){
 		String[] d = new String[subdirs.length];
 		for(int i = 0; i < subdirs.length; i++) {
@@ -49,6 +78,10 @@ public class FS {
 		return d;
 	}
 
+	public FS(String path){
+		this(path2Strings(path));
+	}
+	
 	public FS(String[] dir){
 		if (dir == null || dir.length == 0) {
 			this.dir = new File[0];
@@ -78,6 +111,19 @@ public class FS {
 		}
 		this.dir = lstd.toArray(new File[lstd.size()]);
 		this.subdirs = p.listFiles(filter);
+	}
+	
+	public String[] listZips(){
+		if (this.dirSize() == 0)
+			return new String[0];
+		File owner = this.dir[this.dirSize() - 1];
+		File[] lf = owner.listFiles(filterZip);
+		String[] r = new String[lf.length];
+		for(int i = 0; i < lf.length; i++) {
+			String s = lf[i].getName();
+			r[i] = s.substring(0, s.length() - 4);
+		}
+		return r;
 	}
 	
 	private static File[] getRoots() {

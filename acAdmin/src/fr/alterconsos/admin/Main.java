@@ -27,6 +27,9 @@ public class Main implements IMain {
 		Event.register(ReqConfigDirs.class);
 		Event.register(UpdConfigDir.class);
 		Event.register(UpdConfigNewDir.class);
+		Event.register(SetCurrentDump.class);
+		Event.register(SetCurrentZip.class);
+		Event.register(GetFromZip.class);
 		
 //		Event.register(Personne.class);
 //		Event.register(Personnes.class,
@@ -121,8 +124,9 @@ public class Main implements IMain {
 					cfg.urlD = url;
 					cfg.pwdD = pwd;
 				}
+				cfg.callId = callId;
 				cfg.save();
-				Bridge.sendAck(callId);
+				Bridge.send(cfg);
 			} catch (Exception e) {
 				Bridge.sendEx(callId, e);
 			}
@@ -134,6 +138,7 @@ public class Main implements IMain {
 
 		@Override
 		public void process() {
+			// Bridge.sendEx(callId, new Exception("Pour tester une erreur de chargement de la configuration"));
 			try {
 				Config cfg = main.config();
 				cfg.callId = callId;
@@ -167,6 +172,77 @@ public class Main implements IMain {
 				d.dirs = fs.subdirs();
 				d.callId = callId;
 				Bridge.send(d);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	public static class Dump {
+		int callId;
+		String[] lines;
+	}
+	
+	public static class SetCurrentDump implements IEvent {
+		int callId;
+		String path;
+		String dump;
+		
+		@Override
+		public void process() {
+			try {
+				FS fs = new FS(path + dump);
+				Dump d = new Dump();
+				d.lines = fs.listZips();
+				d.callId = callId;
+				Bridge.send(d);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	public static class Line {
+		int callId;
+		String[] cols;
+	}
+	
+	public static class SetCurrentZip implements IEvent {
+		int callId;
+		String parent;
+		String zip;
+		
+		@Override
+		public void process() {
+			try {
+				Zip zip = Zip.getZip(parent + "/" + this.zip);
+				Line l = new Line();
+				l.cols = zip.cols();
+				l.callId = callId;
+				Bridge.send(l);
+			} catch (Exception e) {
+				Bridge.sendEx(callId, e);
+			}
+		}
+	}
+
+	public static class ZipText {
+		int callId;
+		String text;
+	}
+	
+	public static class GetFromZip implements IEvent {
+		int callId;
+		String col;
+		
+		@Override
+		public void process() {
+			try {
+				Zip zip = Zip.getZip(null);
+				ZipText l = new ZipText();
+				l.text = zip.get(col);
+				l.callId = callId;
+				Bridge.send(l);
 			} catch (Exception e) {
 				Bridge.sendEx(callId, e);
 			}

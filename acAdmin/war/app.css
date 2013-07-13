@@ -288,6 +288,115 @@ html {
 	margin: 0 1rem 0 0;
 }
 
+.acBGGris{
+	padding: 0.2rem;
+	background-color: rgb(220,220,220);
+}
+
+.acBGGrisR{
+	padding: 0.2rem;
+	background-color: rgb(220,220,220);
+	text-align: right;
+}
+
+.acEnd {
+	width: 100%;
+	clear: both;
+}
+
+.acRFL {
+	width: 48%;
+	float: right;
+}
+
+.acLFL {
+	width: 48%;
+	float: left;
+}
+
+.acLFL60 {
+	width: 60px;
+	height: 60px;
+	float: left;
+	border-radius: 5px;
+	-webkit-border-radius: 5px;
+	-moz-border-radius: 5px;
+	border: 1px solid black;
+}
+
+.acRFL60 {
+	margin-top: -62px;
+	margin-left: 70px;
+	height: 20rem;
+	width: 90%;
+}
+
+.acT1 {
+	border-bottom: 1px solid white;
+	margin-bottom: 1rem;
+}
+
+.acT2 {
+	width: 100%;
+}
+
+.acSpace2 {
+	margin-bottom: 2rem;
+}
+
+.acT2t {
+	width: 100%;
+	padding-right: 20px;
+	margin-bottom: 0.5rem;
+}
+
+.acT2Cont {
+	height : 10rem;
+	overflow-y: scroll;
+}
+
+.acTR1 {
+	vertical-align: middle;
+	cursor: pointer;
+}
+.acTR1:hover {
+	background-color: yellow;
+}
+
+.acTRSel {
+	background-color: #07108F;
+	color: white;
+}
+
+.acTD40 {
+	width: 40%;
+	padding-right: 1rem;
+}
+
+.ac33 {
+	width: 30%;
+	padding-right: 1rem;
+}
+
+.ac40 {
+	width: 40%;
+	padding-right: 1rem;
+}
+
+.ac50 {
+	width: 45%;
+	padding-right: 1rem;
+}
+
+.ac66 {
+	width: 66%;
+	padding-right: 1rem;
+}
+
+.acTDR {
+	text-align: right;
+}
+
 input:focus,textarea:focus {
 	-moz-box-shadow: 0 0 12px #387bbe;
 	-webkit-box-shadow: 0 0 12px #387bbe;
