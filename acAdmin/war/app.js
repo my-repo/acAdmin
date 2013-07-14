@@ -353,7 +353,60 @@ $.Class("AC.App", {
 			}
 		}
 		return r;
-	}
+	},
+	
+	dateFormat : function(format, date) {
+		if (date === undefined) {
+			date = new Date();
+		}
+		if (typeof date == 'number') {
+			time = new Date();
+			time.setTime(date);
+			date = time;
+		} else if (typeof date == 'string') {
+			date = new Date(date);
+		}
+		var fullYear = date.getYear();
+		if (fullYear < 1000) {
+			fullYear = fullYear + 1900;
+		}
+		var hour = date.getHours();
+		var day = date.getDate();
+		var month = date.getMonth() + 1;
+		var minute = date.getMinutes();
+		var seconde = date.getSeconds();
+		var ms = date.getMilliseconds();
+		var reg = new RegExp('(d|m|Y|H|i|s|S)', 'g');
+		var replacement = new Array();
+		replacement['d'] = day < 10 ? '0' + day : day;
+		replacement['m'] = month < 10 ? '0' + month : month;
+		replacement['S'] = ms < 10 ? '00' + ms : (ms < 100 ? '0' + ms : ms);
+		replacement['Y'] = fullYear;
+		replacement['H'] = hour < 10 ? '0' + hour : hour;
+		replacement['i'] = minute < 10 ? '0' + minute : minute;
+		replacement['s'] = seconde < 10 ? '0' + seconde : seconde;
+		return format.replace(reg, function($0) {
+			return ($0 in replacement) ? replacement[$0] : $0.slice(1, $0.length - 1);
+		});
+	},
+	
+	hhmmjj : function(date){
+		var hour = date.getHours();
+		var minute = date.getMinutes();
+		var seconde = date.getSeconds();
+		return "" + (hour < 10 ? '0' + hour : hour) + ":" 
+			+ (minute < 10 ? '0' + minute : minute) + ":" 
+			+ (seconde < 10 ? '0' + seconde : seconde);
+	},
+
+	stdDateFormat : function(date) {
+		return this.dateFormat("Y-m-d H:i:s.S", date)
+	},
+
+	stdDateFormat2 : function(date) {
+		var x = this.dateFormat("Ymd", date) + "&nbsp;" + this.dateFormat("His.S", date);
+		return x.substring(2);
+	},
 
 });
 
@@ -655,21 +708,20 @@ $.Class("AC.Main", {
 		+ "</div><div class='acRFL'>"
 		
 		+ "<div class='ac-fontMediumB acBGGrisR' id='colT'>(aucune colonne sélectionnée)</div>"
-		+ "<table class='acT2t'>"
-		+ "<tr class='acTR1'><td class='ac-fontMediumBI ac33'>Type</td>"
-		+ "<td class='ac-fontMediumBI'>ID</td>"
-		+ "<td class='ac-fontMediumBI ac40'>Date / Heure</td></tr></table>"
-		+ "<div class='acT2Cont' id='colC'></div>"
-
+		+ "<img id='PHOTO' class='acImg ac-fontMediumI'></img>"
+		+ "<div id='JSON'>"
+		+ "<textarea id='TA' class='acTA'></textarea>"
 		+ "<div class='acSpace2'></div>"
+		+ "<table class='acT2t'>"
+		+ "<tr class='acTR1'><td class='ac-fontMediumBI ac50'>Type d'items</td>"
+		+ "<td class='ac-fontMediumBI ac40'>Nombre d'items</td></tr></table>"
+		+ "<div class='acT2Cont' id='colC'></div></div>"
 
 		+ "</div><div class='acEnd'></div>"
-
-		+ "<div class='acSpace2'></div>"
-
-		+ "<img id='PHOTO' class='acLFL60 ac-fontMediumI'></img>"
-		+ "<textarea id='TA' class='acRFL60'></textarea>"
-		+ "<div class='acEnd'></div>"
+		
+		+ "<div id='itemT'><div class='ac-fontMediumB acBGGris'></div>"
+		+ "<textarea class='acTA2'></textarea></div>"
+		+ "<div id='itemC'></div>"
 
 }, {
 	init : function(){
@@ -714,8 +766,14 @@ $.Class("AC.Main", {
 		this._contD = this._work.find("#dumpsC");
 		this._lineT = this._work.find("#lineT");
 		this._lineC = this._work.find("#lineC");
+		this._colT = this._work.find("#colT");
+		this._colC = this._work.find("#colC");
 		this._photo = this._work.find("#PHOTO");
+		this._json = this._work.find("#JSON");
 		this._ta = this._work.find("#TA");
+		this._itemT = this._work.find("#itemT");
+		this._itemC = this._work.find("#itemC");
+		this.resetCurrentDump();
 	},
 	
 	display : function(){
@@ -780,14 +838,28 @@ $.Class("AC.Main", {
 		this.currentDumpPath = null;
 		this._titleCD.html("(aucun dump sélectionné)");
 		this._contCD.html("");
+		this.resetCurrentLine();
+	},
+
+	resetCurrentLine : function(){
 		this._lineT.html("(aucune ligne sélectionnée)");
 		this._lineC.html("");
-		this._colT.html("(aucune colonne sélectionnée)");
-		this._colC.html("");
-		this._photo.attr("src", "data:image/jpeg;base64,");
-		this._ta.val("");
+		this.resetCurrentCol();
 	},
 	
+	resetCurrentCol : function(){
+		this._colT.html("(aucune colonne sélectionnée)");
+		this._colC.html("");
+		this._json.css("display", "none");
+		this._photo.css("display", "none");
+		this.resetCurrentItem();
+	},
+
+	resetCurrentItem : function(){
+		this._itemT.css("display", "none");
+		this._itemC.css("display", "none");
+	},
+
 	setCurrentDump : function(){
 		var self = this;
 		APP.send("SetCurrentDump", {dump:this.currentDump, path:this.currentDumpPath}, function(err, data){
@@ -809,28 +881,34 @@ $.Class("AC.Main", {
 		var t = new AC.HB();
 		t.append("<table class='acT2t'>");
 		for(var i = 0, d = null; d = this.currentDumpLines[i]; i++){
-			var j = d.indexOf("_");
-			var line = d.substring(0, j);
-			var dhx = d.substring(j + 1);
-			var dh = APP.editDH(dhx, 2);
-			t.append("<tr class='acTR1' data-index='" + d + "'>");
-			t.append("<td class='ac-fontMedium'>" + line + "</td>");
-			t.append("<td class='ac-fontMedium ac40'>" + dh + "</td></tr>");
+			var x = this.parseLine(d);
+			t.append("<tr class='acTR1' data-index='" + x.id + "'>");
+			t.append("<td class='ac-fontMedium'>" + x.line + "</td>");
+			t.append("<td class='ac-fontMedium ac40'>" + x.dh + "</td></tr>");
 		}
 		t.append("</table>");
 		t.flush(this._contCD);
+		this.resetCurrentLine();
 		APP.oncl(this, this._contCD.find(".acTR1"), function(target){
 			this._contCD.find(".acTRSel").removeClass("acTRSel");
 			target.addClass("acTRSel");
-			this.currentLine = target.attr("data-index");
+			this.currentLine = this.parseLine(target.attr("data-index"));
 			this.setCurrentLine();
 		});
+	},
+	
+	parseLine : function(d){
+		var j = d.indexOf("_");
+		var line = d.substring(0, j);
+		var dhx = d.substring(j + 1);
+		var dh = APP.editDH(dhx, 2);
+		return {id:d, line:line, dh:dh};
 	},
 	
 	setCurrentLine : function(){
 		var p = this.currentDumpPath + "/" + this.currentDump;
 		var self = this;
-		APP.send("SetCurrentZip", {parent:p, zip:this.currentLine + ".zip"}, function(err, data){
+		APP.send("SetCurrentZip", {parent:p, zip:this.currentLine.id + ".zip"}, function(err, data){
 			if (!err)
 				self.displayLine(data);
 			else
@@ -839,49 +917,51 @@ $.Class("AC.Main", {
 	},
 	
 	displayLine : function(data){
-		var dx = this.currentLine;
-		var j = dx.indexOf("_");
-		var line = dx.substring(0, j);
-		var dhx = dx.substring(j + 1);
-		var dh = APP.editDH(dhx, 2);
-		this._lineT .html(line + " / " + dh);
+		var x = this.currentLine;
+		this._lineT .html(x.line + " / " + x.dh);
 		
 		this.currentDumpCols = data.cols;
 		this.currentDumpCols.sort();
 		var t = new AC.HB();
 		t.append("<table class='acT2t'>");
 		for(var i = 0, d = null; d = this.currentDumpCols[i]; i++){
-			var j = d.lastIndexOf(".");
-			var x = d.substring(0, j);
-			j = d.indexOf("_");
-			var col = x.substring(0, j);
-			x = x.substring(j + 1);
-			j = x.indexOf("_");
-			if (j == -1){
-				var type = x;
-				var dh = " ";
-			} else {
-				var type = x.substring(0, j);
-				var dh = APP.editDH(dhx, 2);
-			}
-			t.append("<tr class='acTR1' data-index='" + d + "'>");
-			t.append("<td class='ac-fontMedium ac33'>" + col + "</td>");
-			t.append("<td class='ac-fontMedium'>" + type + "</td>");
-			t.append("<td class='ac-fontMedium ac50'>" + dh + "</td></tr>");
+			var x = this.parseCol(d);
+			t.append("<tr class='acTR1' data-index='" + x.id + "'>");
+			t.append("<td class='ac-fontMedium ac33'>" + x.col + "</td>");
+			t.append("<td class='ac-fontMedium'>" + x.type + "</td>");
+			t.append("<td class='ac-fontMedium ac50'>" + x.dh + "</td></tr>");
 		}
 		t.append("</table>");
 		t.flush(this._lineC);
+		this.resetCurrentCol();
 		APP.oncl(this, this._lineC.find(".acTR1"), function(target){
 			this._lineC.find(".acTRSel").removeClass("acTRSel");
 			target.addClass("acTRSel");
-			this.currentCol = target.attr("data-index");
+			this.currentCol = this.parseCol(target.attr("data-index"));
 			this.setCurrentCol();
 		});
 	},
 	
+	parseCol : function(col){
+		var j = col.lastIndexOf(".");
+		var x = col.substring(0, j);
+		j = col.indexOf("_");
+		var c = x.substring(0, j);
+		x = x.substring(j + 1);
+		j = x.indexOf("_");
+		if (j == -1){
+			var type = x;
+			var dh = " ";
+		} else {
+			var type = x.substring(0, j);
+			var dh = APP.editDH(dhx, 2);
+		}
+		return{type:type, col:c, dh:dh, id:col}
+	},
+	
 	setCurrentCol : function(){
 		var self = this;
-		APP.send("GetFromZip", {col:this.currentCol}, function(err, data){
+		APP.send("GetFromZip", {col:this.currentCol.id}, function(err, data){
 			if (!err)
 				self.displayCol(data);
 			else
@@ -890,13 +970,147 @@ $.Class("AC.Main", {
 	},
 
 	displayCol : function(data){
-		var prefix = "data:image/jpeg;base64,";
-		if (this.currentCol.endsWith(".jpg")){
-			this._ta.val("");
-			this._photo.attr("src", prefix + data.text);
+		this._colT.html("Cellule " + this.currentLine.line + " / " + this.currentCol.col + " [" +
+				this.currentCol.type + "]");
+		if (this.currentCol.type == "PHOTO"){
+			this._photo.attr("src", "data:image/jpeg;base64," + data.text);
+			this._json.css("display", "none");
+			this._itemT.css("display", "none");
+			this._itemC.css("display", "none");
+			this._photo.css("display", "block");
 		} else {
-			this._photo.attr("src", prefix);
 			this._ta.val(data.text);
+			this._json.css("display", "block");
+			this._photo.css("display", "none");
+			this.parseCell(data.text);
 		}
+	},
+	
+	parseCell : function(text){
+		this.obj = {}
+  		try {
+   	   		this.obj = $.parseJSON(text);
+   		} catch(ex){ 
+   			APP.log(ex.toString(), true);
+   			return;
+   		}
+   		var names = [];
+   		for(var t in this.obj)
+   			names.push(t);
+   		names.sort();
+   		var t = new AC.HB();
+   		t.append("<table class='acT2t'>");
+   		for(var i = 0, n = null; n = names[i]; i++){
+   			var x = this.obj[n];
+   			var nb = Array.isArray(x) ? x.length : 1;
+			t.append("<tr class='acTR1' data-index='" + n + "'>");
+			t.append("<td class='ac-fontMedium ac50'>" + n + "</td>");
+			t.append("<td class='ac-fontMedium ac50'>" + nb + "</td></tr>");
+		}
+		t.append("</table>");
+		t.flush(this._colC);
+		this.resetCurrentItem();
+		APP.oncl(this, this._colC.find(".acTR1"), function(target){
+			this._colC.find(".acTRSel").removeClass("acTRSel");
+			target.addClass("acTRSel");
+			var n = target.attr("data-index");
+   			var x = this.obj[n];
+   			var ar = Array.isArray(x) ? x : [x];
+			this.displayItems(n, ar);
+		});
+	},
+	
+	displayItems : function(name, ar){
+		this._itemT.find("textarea").val("");
+		var fn = SortKey[name];
+		var vect = [];
+		for (var i = 0, x = null; x = ar[i]; i++)
+			vect.push({ix:i, sk: fn ? fn(x) : 0});
+		if (fn)
+			vect.sort(function(a,b){
+				if (a.sk < b.sk) return -1;
+				if (a.sk > b.sk) return 1;
+				return 0;
+			})
+		var fields = {};
+		for (var i = 0, x = null; x = ar[i]; i++){
+			for(var f in x)
+				fields[f] = true;
+		}
+		var names = [];
+		var nx = Columns[name];
+		for (var n in fields)
+			if (n != "versionDH") {
+				if (!nx)
+					names.push("9" + n);
+				else {
+					var k = nx.indexOf(n);
+					names.push("" + (k == -1 ? 9 : k) + n);
+				}
+			}
+		names.sort();
+		this._itemT.css("display", "block");
+		this._itemC.css("display", "block");
+		this._itemT.find("div").html("" + ar.length + " item" + (ar.length > 1 ? "s" : "") + " de type " + name);
+		var t = new AC.HB();
+		t.append("<table class='ac-fontMedium acT3'>");
+		t.append("<tr class='ac-fontMediumB'><td class='acC'>#</td>");
+		for (var j = 0, name = null; name = names[j]; j++) {
+			t.append("<td class='acC'>" + name.substring(1) + "</td>");
+		}
+		t.append("</tr>");
+		for (var i = 0; i < vect.length; i++){
+			var x = ar[vect[i].ix];
+			t.append("<tr class='ac-fontMedium acTRX" + (i % 2) + "'><td class='acR'>" + (i + 1) + "</td>");
+			for (var j = 0, xname = null; xname = names[j]; j++) {
+				var name = xname.substring(1);
+				var v = x[name];
+				var c1 = typeof v == "number" ? "R" : "L";
+				t.append("<td class='acTDX ac" + c1 + "' data-index='" + (i*1000 + j) + "'>" + this.editField(v) + "</td>");
+			}
+			t.append("</tr>");
+		}
+		t.append("</table>");
+		t.flush(this._itemC);
+		APP.oncl(this, this._itemC.find(".acTDX"), function(target){
+			this._itemC.find(".acTRSel").removeClass("acTRSel");
+			target.addClass("acTRSel");
+			var n = target.attr("data-index");
+			var i = Math.floor(n / 1000);
+			var nf = names[n % 1000].substring(1);
+   			var v = ar[i][nf];
+   			this._itemT.find("textarea").val(v);
+		});
+	},
+	
+	editField : function(v){
+		if (typeof v == "undefined")
+			return "";
+		if (typeof v == "number") {
+			if (v > 1000000000000)
+			 return APP.stdDateFormat2(v);
+			return "" + v;
+		}
+		return v;
 	}
 });
+
+/****************************************/
+$.Class("SortKey",{
+	Livr : function(x){
+		var gap = x.gap ? x.gap : 0;
+		var gac = x.gac ? x.gac : 0;
+		var cl = x.codeLivr ? x.codeLivr : 0;
+		return (gap * 1000000) + (cl * 1000) + gac;
+	},
+	Entry : function(x){
+		var t = x.type ? x.type : 0;
+		var c = x.code ? x.code : 0;
+		return (t * 1000000) + c;
+	}
+},{})
+
+$.Class("Columns",{
+	Livr : ["gap", "codeLivr", "gac"],
+	Entry : ["type", "code"],
+},{})

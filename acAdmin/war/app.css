@@ -314,21 +314,57 @@ html {
 	float: left;
 }
 
-.acLFL60 {
+.acImg {
 	width: 60px;
 	height: 60px;
-	float: left;
 	border-radius: 5px;
 	-webkit-border-radius: 5px;
 	-moz-border-radius: 5px;
 	border: 1px solid black;
+	margin-top: 1rem;
 }
 
-.acRFL60 {
-	margin-top: -62px;
-	margin-left: 70px;
-	height: 20rem;
-	width: 90%;
+.acR {
+	text-align: right;
+	padding: 0 0.4rem;
+}
+
+.acL {
+	text-align: left;
+	padding: 0 0.4rem;
+}
+
+.acC {
+	text-align: center;
+	padding: 0 0.4rem;
+}
+
+.acTDX {
+	white-space: nowrap;
+	height: 1.4rem;
+	overflow: hidden;
+	max-width: 12rem;
+	cursor:pointer;
+}
+
+.acTA {
+	margin: 1rem 0;
+	height: 30rem;
+	width: 98%;
+}
+
+.acTA2 {
+	margin: 0.5rem 0;
+	height: 3rem;
+	width: 98%;
+}
+
+.acTRX0 {
+	background-color: rgb(230,230,230);
+}
+
+.acTRX1 {
+	background-color: white;
 }
 
 .acT1 {
@@ -338,6 +374,10 @@ html {
 
 .acT2 {
 	width: 100%;
+}
+
+.acT3 {
+	border-spacing: 4px;
 }
 
 .acSpace2 {
