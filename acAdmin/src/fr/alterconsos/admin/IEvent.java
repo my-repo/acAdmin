@@ -1,5 +1,5 @@
 package fr.alterconsos.admin;
 
 public interface IEvent {
-	public void process();
+	public Object process() throws Exception;
 }

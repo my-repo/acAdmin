@@ -221,25 +221,21 @@ html {
 .acAttente {
 	display: block;
 	position: fixed;
-	width: 170px;
-	height: 170px;
+	width: 100%;
+	top : 0;
+	left : 0;
+	height: 32px;
 	overflow: hidden;
-	background: rgb(50, 50, 50);
-	cursor: pointer;
-	border-radius: 8px;
-	-moz-border-radius: 8px;
-	-webkit-border-radius: 8px;
-	border: 2px solid white;
+	background-color: rgb(50, 50, 50);
 	cursor: pointer;
 	display: none;
+	overflow: hidden;
 }
 
 .acAttenteTxt {
-	text-align: center;
-	margin-left: auto;
-	margin-right: auto;
-	margin-top: 10px;
-	margin-bottom: 10px;
+	height: 16px;
+	overflow: hidden;
+	margin-left: 50px;
 	color: white;
 }
 
@@ -476,12 +472,11 @@ input,textarea {
 
 .acSpinner {
 	display: block;
-	margin-left: auto;
-	margin-right: auto;
+	float: left;
+	margin: 0;
 	background: url('images/ajax-loader.png');
 	width: 32px;
 	height: 32px;
-	cursor: pointer;
 	animation: spin;
 	-webkit-animation-name: spin;
 	-webkit-transform: rotate(0deg, 360deg);

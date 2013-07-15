@@ -48,7 +48,30 @@ public class Bridge extends WebSocketServer {
 	@Override
 	public void onMessage(WebSocket conn, String message) {
 		// conn.send("reçu : [" + message + "]");
-		Event.process(message);
+		// Event.process(message);
+		
+		Event<?> event;
+		try {
+			event = Event.get(message);
+		} catch (Exception e1) {
+			e1.printStackTrace();
+			return;
+		}
+		if (event == null)
+			return;
+		Object obj;
+		try {
+			if (event.data != null)
+				obj = event.data.process();
+			else
+				obj = Event.get(event).process(); // List
+			if (obj == null)
+				sendAck(event.callId);
+			else
+				send(event.callId, obj);
+		} catch (Exception e){
+			sendEx(event.callId, e);
+		}
 	}
 
 	@Override
@@ -82,10 +105,18 @@ public class Bridge extends WebSocketServer {
 		theConn.send(Event.serial(m));
 	}
 
-	public static void send(Object data) {
+	public static void send(int callId, Object data) {
 		String s = Event.serial(data);
-		if (s != null)
-			theConn.send(s);
+		String m = "{\"callId\":" + callId + ", \"data\":" + s + "}";
+		theConn.send(m);
+	}
+
+	public static void send(Object data) {
+		if (data != null) {
+			String s = Event.serial(data);
+			String m = "{\"type\":\"" + data.getClass().getSimpleName() + "\", \"data\":" + s + "}";
+			theConn.send(m);
+		}
 	}
 
 	public static void ex(Exception e) {

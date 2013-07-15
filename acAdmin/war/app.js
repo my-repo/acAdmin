@@ -155,9 +155,11 @@ $.Class("AC.App", {
 	init : function(){
 		this.registered = {};
 		this.callId = 0;
+		this.calls = {}
 		
 		this._maskA = $("#acMaskA");
 		this._attente = $("#acAttente");
+		this._attenteInfo = $("#acAttenteInfo");
 		this._work = $("#acWork");
 		this.LOG = $("#LOG");
 		
@@ -183,19 +185,30 @@ $.Class("AC.App", {
             else {
            		if (APP.debug)
            			console.log("[WebSocket#onmessage] : " + JSON.stringify(msg) + "\n");
-           		if (msg.data && msg.data.callId){
-           			if (!(msg.data.callId === APP.callId) || !APP.rpcCb)
+           		if (msg.callId){
+           			var call = APP.calls[msg.callId];
+           			if (!call)
            				return;
-           			APP.unmaskScreen();
-           			var cb = APP.rpcCb;
-           			APP.rpcCb = null;
-           			if (msg.type == "ErrMsg"){
-           				APP.log(msg.data.message, true);
-       					cb(1, msg.data.message);
+           			var cb = call.cb;
+           			delete APP.calls[msg.callId];
+           			if (APP.isEmpty(APP.calls))
+           				APP.unmaskScreen();
+           			else {
+           				var info = "";
+           				for(var callId in APP.calls){
+           					APP.currentCallId = callId;
+           					info = APP.calls[callId].info;
+           					break;
+           				}
+           				APP.setmaskInfo(info);
+           			}
+           			if (msg.message){
+           				APP.log(msg.message, true);
+       					cb(1, msg.message);
            			} else
            				cb(0, msg.data);
            		} else {
-	           		var handler = APP.registered[data.type];
+	           		var handler = APP.registered[msg.type];
 	           		if (handler)
 	           			handler.onmessage(data);
 	           	}
@@ -214,19 +227,25 @@ $.Class("AC.App", {
 			this.registered[type] = handler;
 	},
 	
-	send : function(type, obj, cb){
+	send : function(type, obj, cb, info){
+		this.callId++;
+		var b = this.isEmpty(this.calls);
 		if (cb){
-			this.callId++;
-			obj.callId = this.callId;
-			this.rpcCb = cb;
-			this.maskScreen();
-		} else
-			this.rpcCb = null;
-		var arg = JSON.stringify({type:type, data:obj});
+			if (b)
+				this.maskScreen(info, this.callId);
+			this.calls[this.callId] = {cb: cb, info:info};
+		}
+		var arg = JSON.stringify({type:type, callId:this.callId, data:obj});
         this.ws.send(arg);
 	},
+	
+	setmaskInfo : function(info){
+		this._attenteInfo.html(info ? info.escapeHTML() : "");
+	},
 		
-	maskScreen : function() {
+	maskScreen : function(info, callId) {
+		this.currentCallId = callId;
+		this.setmaskInfo(info);
 		this._attente.css("display", "none");
 		this.attente = false;
 		this._maskA.css("display", "block");
@@ -234,19 +253,30 @@ $.Class("AC.App", {
 		this.timerAttente = setTimeout(function() {
 			self.timerAttente = null;
 			self.attente = true;
-			var h = $(window).height();
-			var w = $(window).width();
-			self._attente.css("top", "" + Math.floor((h - 110) / 2) + "px");
-			self._attente.css("left", "" + Math.floor((w - 170) / 2) + "px");
 			self.opacity0(APP._attente);
 			self._attente.css("display", "block");
 			self.oncl(self, APP._attente, function(){
-				APP.unmaskScreen();
-				var cb = APP.rpcCb;
-				if (cb) {
-					APP.rpcCb = null;
-					cb(-1);
-				}
+       			var call = APP.calls[self.currentCallId];
+       			if (!call) {
+       				// ??? bug ???
+       				APP.unmaskScreen();
+       				return;
+       			}
+       			var cb = call.cb;
+       			delete APP.calls[self.currentCallId];
+       			if (APP.isEmpty(APP.calls))
+       				APP.unmaskScreen();
+       			else {
+       				var info = "";
+       				for(var callId in APP.calls){
+       					APP.currentCallId = callId;
+       					info = APP.calls[callId].info;
+       					break;
+       				}
+       				APP.setmaskInfo(info);
+       			}
+       			if (cb)
+       				cb(-1, "Interruption par un click");
 			});
 			setTimeout(function() {
 				self.opacity07(APP._attente);
@@ -298,6 +328,14 @@ $.Class("AC.App", {
 		obj.x = x;
 		obj.y = y;
 		return obj;
+	},
+
+	isEmpty : function(map) {
+		if (!map)
+			return true;
+		for ( var x in map)
+			return false;
+		return true;
 	},
 
 	CLICK : "click",
@@ -408,38 +446,6 @@ $.Class("AC.App", {
 		return x.substring(2);
 	},
 
-});
-
-/*******************************************************/
-AC.PopForm("AC.Test", {
-	html : "<div class='ac-fontMediumB acBtn' id='GO1'>GO-une</div>"
-		+ "<div class='ac-fontMediumB acBtn' id='GON'>GO-liste</div>"
-		
-}, {
-	init : function(){
-		var hb = new AC.HB();
-		hb.append(this.constructor.html);
-		this._super(hb, "Test PopForm");
-		APP.oncl(this, "GO1", function(target){
-    		APP.send("Personne", {nom:'Sportes', age:63});
-    	});
-		APP.oncl(this, "GON", function(){
-    		APP.send("Personnes", [{nom:'Sportes', age:63}, {nom:'Colin', age:62}]);
-    	});
-		APP.register("Personne", this);
-		APP.register("Personnes", this);
-	},
-	
-	onmessage : function(data){
-		var x = JSON.stringify(data);
-		APP.log(x, data.type == "Personne");
-	},
-	
-	close : function(){
-		APP.register("Personne");
-		APP.register("Personnes");
-		this._super();
-	}
 });
 
 /*******************************************************/
@@ -554,6 +560,7 @@ AC.PopForm("AC.Config", {
 	},
 
 	enBtns : function(){
+		APP.btnEnable(this._newdirBtn, this._newdirInp.val());
 		var uP = this._urlPInp.val() ? this._urlPInp.val() : "";
 		var pP = this._pwdPInp.val() ? this._pwdPInp.val() : "";
 		APP.btnEnable(this._okPBtn, !(uP === this.config.urlP) || !(pP === this.config.pwdP));
@@ -573,7 +580,7 @@ AC.PopForm("AC.Config", {
 			if (!err) {
 				self.display(data);
 			}			
-		});
+		}, "Enregistrement de la configuration");
 	},
 	
 	newdir : function(){
@@ -585,7 +592,7 @@ AC.PopForm("AC.Config", {
 				APP.btnEnable(self._newdirBtn, false);
 				self.display(data);
 			}
-		});
+		}, "Enregistrement de la configuration");
 	},
 	
 	reload : function(){
@@ -593,7 +600,7 @@ AC.PopForm("AC.Config", {
 		APP.send("ReqConfig", {}, function(err, data){
 			if (!err)
 				self.display(data);
-		});
+		}, "Lecture de la configuration");
 	},
 	
 	getSubDirs : function(){
@@ -603,7 +610,7 @@ AC.PopForm("AC.Config", {
 				self.displayDirs(data);
 			else
 				self.displayDirs({dirs:[]});
-		});	
+		}, "Lecture de la configuration");	
 	},
 	
 	updConfigDir : function(dir){
@@ -611,10 +618,12 @@ AC.PopForm("AC.Config", {
 		APP.send("UpdConfigDir", {dir:dir}, function(err, data){
 			if (!err)
 				self.display(data);
-		});			
+		}, "Enregistrement de la configuration");			
 	},
 	
 	display : function(data){
+		var x = data.dir.endsWith("/") ? data.dir.substring(0, data.dir.length - 1) : data.dir;
+		data.xdir = x.split("/");
 		this.config = data;
 		this._urlPInp.val(this.config.urlP);
 		this._urlTInp.val(this.config.urlT);
@@ -625,16 +634,16 @@ AC.PopForm("AC.Config", {
 		this.enBtns();
 		var t = new AC.HB();
 		t.append("<div class='acPath'>");
-		for(var i = 0; i < data.dir.length; i++){
+		for(var i = 0; i < data.xdir.length; i++){
 			if (i)
 				t.append("<div class='acDirsep ac-fontMedium2'>/</div>");
-			t.append("<div class='acDirname ac-fontMedium2B' data-index='" + i + "'>" + data.dir[i] + "</div>");
+			t.append("<div class='acDirname ac-fontMedium2B' data-index='" + i + "'>" + data.xdir[i] + "</div>");
 		}
 		t.append("</div>");
 		t.flush(this._content.find("#dir"));
 		APP.oncl(this, this._content.find(".acDirname"), function(target){
 			var n = parseInt(target.attr("data-index"), 10);
-			this.updConfigDir(data.dir.slice(0, n + 1));
+			this.updConfigDir(data.xdir.slice(0, n + 1).join("/") + "/");
 		});
 		this.getSubDirs();
 	},
@@ -648,11 +657,7 @@ AC.PopForm("AC.Config", {
 		t.flush(this._content.find("#subdirs"));
 		APP.oncl(this, this._content.find(".acDirname2"), function(target){
 			var n = parseInt(target.attr("data-index"), 10);
-			var nd = [];
-			for(var i = 0, d = null; d = this.config.dir[i]; i++)
-				nd.push(d);
-			nd.push(this.subdirs[n]);
-			this.updConfigDir(nd);
+			this.updConfigDir(this.config.dir + this.subdirs[n] + "/");
 		});
 	},
 
@@ -758,7 +763,7 @@ $.Class("AC.Main", {
 				alert(data + "\nLancement de l'application impossible");
 				window.close();
 			}
-		});
+		}, "Lecture de la configuration");
 		
 		this._work.html(this.constructor.html);
 		this._titleCD = this._work.find("#acCurrentDumpT");
@@ -789,7 +794,7 @@ $.Class("AC.Main", {
 				self.displayDirs(data);
 			else
 				self.displayDirs({dirs:[]});
-		});	
+		}, "Lecture de la configuration");	
 	},
 
 	displayDirs : function(data){
@@ -827,7 +832,7 @@ $.Class("AC.Main", {
 			this._contD.find(".acTRSel").removeClass("acTRSel");
 			target.addClass("acTRSel");
 			this.currentDump = target.attr("data-index");
-			this.currentDumpPath = APP.config.dir.join("/") + "/";
+			this.currentDumpPath = APP.config.dir;
 			this.setCurrentDump();
 		});
 	},
@@ -867,7 +872,7 @@ $.Class("AC.Main", {
 				self.displayDump(data);
 			else
 				self.displayDump({lines:[]});
-		});	
+		}, "Lecture de la sauvegarde");	
 	},
 	
 	displayDump : function(data){
@@ -913,7 +918,7 @@ $.Class("AC.Main", {
 				self.displayLine(data);
 			else
 				self.displayLine({cols:[]});
-		});		
+		}, "Ouverture du ZIP de la ligne");		
 	},
 	
 	displayLine : function(data){
@@ -966,7 +971,7 @@ $.Class("AC.Main", {
 				self.displayCol(data);
 			else
 				self.displayCol({text:""});
-		});		
+		}, "Lecture de la colonne dans le ZIP");		
 	},
 
 	displayCol : function(data){
