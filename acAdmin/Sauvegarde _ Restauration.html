@@ -1,0 +1,86 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html><head>
+<meta content="text/html; charset=ISO-8859-1" http-equiv="content-type"><title>Sauvegarde / Restauration</title>
+
+<link rel="stylesheet" href="general.css" type="text/css">
+</head>
+<body>
+<h1>Sauvegarde / Restauration</h1>
+<h2>Serveurs</h2>
+Trois serveurs sont prédéfinis :<br>
+<ul>
+<li><span style="font-weight: bold;">P - Production</span>
+: hébergé sur le nuage ;</li>
+<li><span style="font-weight: bold;">T - Test</span>
+: hébergé en local pour des tests ;</li>
+<li><span style="font-weight: bold;">D -
+Développement</span> : hébergé dans l'environnement Eclipse.</li>
+</ul>
+Chaque serveur :<br>
+<ul>
+<li>est défini par son URL commençant par http://... ou
+https://... ;</li>
+<li>a un mot de passe d'administration ;</li>
+<li>peut avoir a un instant donné, a) soit une sauvegarde en
+cours, b) soit une restauration en cours, soit rien rien en cours.</li>
+</ul>
+<h2>Sauvegardes</h2>
+Une sauvegarde est identifiée par :<br>
+<ul>
+<li><span style="font-weight: bold;">P / T / D</span>
+: le serveur dont les données ont été sauvegardées ;</li>
+<li><span style="font-weight: bold;">la date-heure
+en seconde du lancement</span> de la sauvegarde (20130714123055);</li>
+<li><span style="font-weight: bold;">X / A / P / C</span>
+son statut:</li>
+<ul>
+<li><span style="font-weight: bold;">X - en
+exécution</span> : la liste des lignes à sauver est constituée
+(fichier lignes.json) et de 0 à N de celles-ci sont déjà sauvegardées ;</li>
+<li><span style="font-weight: bold;">A -
+abandonnée</span> : un incident non récupérable ou toute autre
+raison a entraîne&nbsp;la décision d'interruption définitive.
+Certaines lignes sont sauvées ;</li>
+<li><span style="font-weight: bold;">P -
+partielle</span> : la sauvegarde s'est terminée normalement mais
+elle était partielle (seulement certaines lignes) ;</li>
+<li><span style="font-weight: bold;">C - complète</span>
+: la sauvegarde de toutes les lignes s'est terminée normalement.</li>
+</ul>
+</ul>
+Le répertoire d'une sauvegarde contient :<br>
+<ul>
+<li>un fichier .zip par ligne
+sauvée&nbsp;nommé&nbsp;<span class="fixed">C.1._20130713142432666.zip</span>
+où,</li>
+<ul>
+<li><span class="fixed">C.1.</span>
+est l'identifiant de la ligne ;</li>
+<li><span class="fixed">20130713142432666</span>
+est sa version (date / heure en ms);</li><li>chaque ZIP contient une entrée par colonne de la forme <span class="fixed">id_type_version</span> (id de la colonne, son type et sa version). Les items sont stockés en json (un array ou un objet pour chaque type d'item).</li>
+</ul>
+<li>un fichier <span class="fixed">lignes.json</span> qui est un array donnant la liste des
+identifiants des lignes à sauver;</li>
+<li>un fichier <span class="fixed">filtre.json</span> qui décrit le filtre sur les
+éléments à sauver dans le cas d'une sauvegarde partielle :</li>
+<ul>
+<li><span class="fixed">"version" : 20130713142432666</span>&nbsp;
+- seules les lignes, colonnes et items ayant une version postérieure
+sont sauvés ;</li>
+<li><span class="fixed">"lignes" : "C.1. D"</span>
+- seules les lignes dont les identifiants commencent par l'un de ces
+mots (séparés par un espace), sont sauvées. En cas d'absence, toutes ;</li>
+<li><span class="fixed">"colonnes" : "0. 203."</span>
+- filtre sut les identifiants de colonnes ;</li>
+<li><span class="fixed">"types" : "Calendrier
+LivrG"</span> - filtre sur les types de colonnes ;</li><li>(il n'y a pas de filtre
+sur les items d'une cellule, sauf la version).</li>
+</ul>
+</ul><h2>Etat courant de l'application</h2>A un instant donné une seule
+instance au plus de l'application peut être en exécution : elle utilise
+le port 8887 pour l'échange entre la partie calcul (java) et la partie
+UI (HTML / Javascript s'exécutant dans Chrome).<br>Son état courant est mémorisé dans user.home sous le nom .acAdmin.json qui contient :<br><ul><li><span class="fixed">urlP urlT urlD</span> : les urls des trois serveurs ;</li><li><span class="fixed">pwdP pwdT pwdD</span> : les mots de passe des trois serveurs ;</li><li><span class="fixed">dir</span> : le path du dernier répertoire de sauvegard utilisé ;</li><li><span class="fixed">runP runT runD</span> : les états des exécutions en cours (éventuelles) sur les trois serveurs avec :</li><ul><li><span class="fixed">"encours" : "S"</span> - S (sauvegarde), R (restauration)</li><li><span class="fixed">"path" : "D:/..."</span> - path du répertoire hébergeant la sauvegarde ;</li><li><span class="fixed">"nom" : "P...C"</span> - nom de cette sauvegarde ;</li><li><span class="fixed">"nblignes" : 12</span> - nombre de lignes déjà traitées ;</li><li><span class="fixed">"exception" : "..."</span> - libellé de l'exception éventuelle si l'opération est suspendue en erreur ou interruption.</li></ul></ul><h2>Exécutions</h2>Une
+opération de sauvegarde / restauration peut être reprise autant de fois
+que nécessaire, chaque reprise tentant de sauvegarder / restaurer les
+lignes restantes.<br>Le trafic normal est interrompu durant ces exécutions, depuis le lancement jusqu'à la fin définitive (succès ou abandon).<br>
+</body></html>

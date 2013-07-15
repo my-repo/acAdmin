@@ -465,12 +465,12 @@ AC.PopForm("AC.Config", {
 		+ "<tr class='acTR1'><td class='ac-fontMedium'>Test</td>"
 		+ "<td class='acTD40'><input type='text' id='UrlTInp'></input></td>"
 		+ "<td class='acTD40'><input type='text' id='PwdTInp'></input></td>"
-		+ "<td class='acTDR><div class='ac-fontMediumB acBtn' id='OkTBtn'>OK</div></td></tr>"
+		+ "<td class='acTDR'><div class='ac-fontMediumB acBtn' id='OkTBtn'>OK</div></td></tr>"
 
 		+ "<tr class='acTR1'><td class='ac-fontMedium'>Développement</td>"
 		+ "<td class='acTD40'><input type='text' id='UrlDInp'></input></td>"
 		+ "<td class='acTD40'><input type='text' id='PwdDInp'></input></td>"
-		+ "<td class='acTDR><div class='ac-fontMediumB acBtn' id='OkDBtn'>OK</div></td></tr></table>"
+		+ "<td class='acTDR'><div class='ac-fontMediumB acBtn' id='OkDBtn'>OK</div></td></tr></table>"
 
 		+ "<div class='ac-fontMediumBI'>Répertoire contenant les dumps</div>"
 		+ "<div class='ac-fontMediumB acBtn acFLR' id='syncBtn'>Sync</div>"
@@ -669,6 +669,7 @@ AC.PopForm("AC.Config", {
 			APP.config = this.config;
 		this._super();
 		AC.Main.current.display();
+		AC.Run.config();
 	}
 });
 
@@ -743,6 +744,7 @@ $.Class("AC.Main", {
 			return;
 		this.onreadyDone = true;
 		APP.log("Chargement de la configuration ...");
+		AC.Run.start();
 		this._configuration = $("#configuration");
 		APP.oncl(this, this._configuration, function(){
 			new AC.Config();
@@ -758,6 +760,7 @@ $.Class("AC.Main", {
 			if (!err) {
 				APP.log("... terminée. Prêt !");
 				APP.config = data;
+				AC.Run.config();
 				self.display();
 			} else {
 				alert(data + "\nLancement de l'application impossible");
@@ -1100,6 +1103,81 @@ $.Class("AC.Main", {
 	}
 });
 
+/****************************************/
+$.Class("AC.Run", {
+	libs : {P:"Production", T:"Test", D:"Développement"},
+	all : {P:null, T:null, D:null},
+	start : function() {
+		for(v in this.all)
+			this.all[v] = new AC.Run(v);
+	},
+	config : function(){
+		for(v in this.all)
+			this.all[v].config();
+		this.enable();
+	},
+	disable : function(){
+		for(v in this.all)
+			APP.btnEnable(this.all[v]._btn, false);
+	},
+	enable : function(){
+		for(v in this.all)
+			APP.btnEnable(this.all[v]._btn, true);
+	},
+	
+},{
+	init : function(ptd){
+		this.ptd = ptd;
+		this.nom = this.constructor.libs[ptd];
+		this._btn = $("#run" + this.ptd);
+		this.status = "";
+		this.editBtn();
+		APP.oncl(this, this._btn, this.openForm);
+	},
+	
+	editBtn : function(){
+		var st = this.config ? this.config.encours : "?";
+		if (this.status)
+			st += " [" + this.status + "]";
+		this._btn.html(this.nom + " " + st);
+	},
+	
+	config : function(){
+		this.config = APP.config["run" + this.ptd];
+		this.editBtn();
+	},
+	
+	openForm : function(){
+		this.form = new AC.RunForm(this);
+		this.constructor.current = this;
+		this.constructor.disable();
+	},
+	
+	closeForm : function(){
+		this.form = null;
+		this.constructor.current = null;
+		this.constructor.enable();		
+	}
+	
+});
+
+AC.PopForm("AC.RunForm", {
+	html : "<div class='ac-fontMedium'>",
+	
+}, {
+	init : function(run){
+		this.run = run;
+		var t = new AC.HB();
+		t.append(this.constructor.html + this.run.nom + "</div>");
+		this._super(t);
+	},
+	
+	close : function(){
+		this._super();
+		this.run.closeForm();
+	}
+	
+});
 /****************************************/
 $.Class("SortKey",{
 	Livr : function(x){

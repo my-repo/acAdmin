@@ -54,6 +54,7 @@ public class Main implements IMain {
 	public static class Run {
 		String encours;
 		String path;
+		String nom;
 		int nblignes;
 		String exception;
 	}
