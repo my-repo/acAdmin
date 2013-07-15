@@ -55,7 +55,7 @@ public class Main implements IMain {
 		String encours;
 		String path;
 		String nom;
-		int nblignes;
+		int nblignes = -1;
 		String exception;
 	}
 
@@ -70,6 +70,59 @@ public class Main implements IMain {
 		Run runP;
 		Run runT;
 		Run runD;
+		
+		public synchronized Config chgRun(String ptd, Run arg)  throws Exception{
+			if (arg == null)
+				return this;
+			Run run = new Run();
+			if ("P".equals(ptd) && runP != null) {
+				run = runP;
+			} else if ("T".equals(ptd) && runT != null) {
+				run = runT;
+			} else if ("D".equals(ptd) && runT != null) {
+				run = runD;
+			}
+			if (arg.encours != null)
+				run.encours = arg.encours;
+			if (arg.path != null)
+				run.path = arg.path;
+			if (arg.nom != null)
+				run.nom = arg.nom;
+			if (arg.nblignes != -1)
+				run.nblignes = arg.nblignes;
+			if (arg.exception != null)
+				run.exception = arg.exception;
+			if ("P".equals(ptd)) {
+				runP = run;
+			} else if ("T".equals(ptd)) {
+				runT = run;
+			} else if ("D".equals(ptd)) {
+				runD = run;
+			}
+			this.save();
+			return this;			
+		}
+		
+		public synchronized Config chgDir(String dir) throws Exception{
+			this.dir = dir;
+			this.save();
+			return this;
+		}
+		
+		public synchronized Config chgSrv(String ptd, String url, String pwd)  throws Exception{
+			if ("P".equals(ptd)) {
+				this.urlP = url;
+				this.pwdP = pwd;
+			} else if ("T".equals(ptd)) {
+				this.urlT = url;
+				this.pwdT = pwd;
+			} else if ("D".equals(ptd)) {
+				this.urlD = url;
+				this.pwdD = pwd;
+			}
+			this.save();
+			return this;
+		}
 	}
 
 	public static class UpdConfigDir implements IEvent {
@@ -77,11 +130,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Config cfg = main.config();
-			FS fs = new FS(dir);
-			cfg.dir = fs.path();
-			cfg.save();
-			return cfg;
+			return main.config().chgDir(new FS(dir).path());
 		}
 	}
 
@@ -91,11 +140,7 @@ public class Main implements IMain {
 		@Override
 		public Object process() throws Exception {
 			Config cfg = main.config();
-			FS fs = new FS(cfg.dir);
-			fs.newDir(newdir);
-			cfg.dir = fs.path();
-			cfg.save();
-			return cfg;
+			return cfg.chgDir(new FS(cfg.dir).newDir(newdir).path());
 		}
 	}
 
@@ -106,19 +151,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Config cfg = main.config();
-			if ("P".equals(ptd)) {
-				cfg.urlP = url;
-				cfg.pwdP = pwd;
-			} else if ("T".equals(ptd)) {
-				cfg.urlT = url;
-				cfg.pwdT = pwd;
-			} else if ("D".equals(ptd)) {
-				cfg.urlD = url;
-				cfg.pwdD = pwd;
-			}
-			cfg.save();
-			return cfg;
+			return main.config().chgSrv(ptd, url, pwd);
 		}
 	}
 
@@ -127,12 +160,9 @@ public class Main implements IMain {
 		@Override
 		public Object process() throws Exception {
 			Config cfg = main.config();
-			FS fs = new FS(cfg.dir);
-			String path = fs.path();
-			if (!path.equals(cfg.dir)) {
-				cfg.dir = path;
-				cfg.save();
-			}
+			String path = new FS(cfg.dir).path();
+			if (!path.equals(cfg.dir))
+				cfg.chgDir(path);
 			return cfg;
 		}
 	}
@@ -147,10 +177,8 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Config cfg = main.config();
-			FS fs = new FS(cfg.dir);
 			Dirs d = new Dirs();
-			d.dirs = fs.subdirs();
+			d.dirs = new FS(main.config().dir).subdirs();
 			d.callId = callId;
 			return d;
 		}
@@ -166,9 +194,8 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			FS fs = new FS(path + dump);
 			Dump d = new Dump();
-			d.lines = fs.listZips();
+			d.lines = new FS(path + dump).listZips();
 			return d;
 		}
 	}
@@ -184,9 +211,8 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Zip zip = Zip.getZip(parent + "/" + this.zip);
 			Line l = new Line();
-			l.cols = zip.cols();
+			l.cols = Zip.getZip(parent + "/" + this.zip).cols();
 			return l;
 		}
 	}
@@ -200,9 +226,8 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Zip zip = Zip.getZip(null);
 			ZipText l = new ZipText();
-			l.text = zip.get(col);
+			l.text = Zip.getZip(null).get(col);
 			return l;
 		}
 	}

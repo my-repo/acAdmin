@@ -135,7 +135,7 @@ public class FS {
 		return lst.toArray(new File[lst.size()]);
 	}
 		
-	public void newDir(String name) throws Exception{
+	public FS newDir(String name) throws Exception{
 		if (name == null || name.length() == 0)
 			throw new Exception("Nom absent");
 		File d = new File(dir[dir.length - 1], name);
@@ -149,6 +149,7 @@ public class FS {
 		nd[dir.length] = d;
 		this.dir = nd;
 		this.subdirs = d.listFiles(filter);
+		return this;
 	}
 	
 	/*
