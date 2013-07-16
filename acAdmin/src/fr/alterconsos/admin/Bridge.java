@@ -1,6 +1,9 @@
 package fr.alterconsos.admin;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
@@ -14,6 +17,16 @@ public class Bridge extends WebSocketServer {
 	private static IMain theMain;
 	private static Bridge theBridge;
 
+	public static String exc(Exception e){
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		e.printStackTrace(new PrintStream(bos));
+		try {
+			return bos.toString("UTF-8");
+		} catch (UnsupportedEncodingException e1) {
+			return e.toString();
+		}
+	}
+	
 	public Bridge(int port) throws UnknownHostException {
 		super(new InetSocketAddress(port));
 	}
@@ -83,7 +96,7 @@ public class Bridge extends WebSocketServer {
 	public static void sendEx(int callId, Exception e){
 		ErrMsg m = new ErrMsg();
 		m.callId = callId;
-		m.message = e.getMessage();
+		m.message = Bridge.exc(e);
 		theConn.send(Event.serial(m));
 	}
 

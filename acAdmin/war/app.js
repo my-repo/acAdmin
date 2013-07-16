@@ -210,7 +210,7 @@ $.Class("AC.App", {
            		} else {
 	           		var handler = APP.registered[msg.type];
 	           		if (handler)
-	           			handler.onmessage(data);
+	           			handler.onmessage(msg.data);
 	           	}
             }
         }
@@ -377,6 +377,21 @@ $.Class("AC.App", {
 			cmp.removeClass('ui-disabled');
 		else
 			cmp.addClass('ui-disabled');
+	},
+	
+	normDH : function(s){
+		var n = "20120101000000000";
+		if (!s)
+			return 0;
+		try {
+			var x = "" + parseInt(s, 10);
+			if (x.length > 17)
+				return parseInt(x.substring(0, 17), 10);
+			x += n.substring(x.length);
+			return parseInt(x, 10);
+		} catch (e){
+			return 0;
+		}
 	},
 	
 	editDH : function(s, p){
@@ -1147,9 +1162,14 @@ $.Class("AC.Run", {
 		for(v in this.all)
 			APP.btnEnable(this.all[v]._btn, true);
 	},
-	
+	onmessage : function(data){
+		var run = this.all[data.ptd];
+		if (run && run.form)
+			run.form.onmessage(data);
+	}
 },{
 	init : function(ptd){
+		APP.register("ProcessInfo", this.constructor);
 		this.ptd = ptd;
 		this.nom = this.constructor.libs[ptd];
 		this._btn = $("#run" + this.ptd);
@@ -1185,14 +1205,59 @@ $.Class("AC.Run", {
 });
 
 AC.PopForm("AC.RunForm", {
-	html : "<div class='ac-fontMedium'>",
+	html : "<div class='ac-fontMedium'>"
+	+ "<table><tr class='acTR1'><td class='ac-fontMedium acTD40'>Version postérieure à :</td>"
+	+ "<td ><input type='text' id='fversion'></input></td></tr>"
+	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Lignes dont l'ID commence par :</td>"
+	+ "<td ><input type='text' id='flignes'></input></td></tr>"
+	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Colonnes dont l'ID commence par :</td>"
+	+ "<td ><input type='text' id='fcolonnes'></input></td></tr>"
+	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Types de cellules dont le nom commence par :</td>"
+	+ "<td ><input type='text' id='ftypes'></input></td></tr><table></div>"
+	
+	+ "<div class='acSpace2' id='processInfo'></div>"
+
 	
 }, {
 	init : function(run){
 		this.run = run;
 		var t = new AC.HB();
-		t.append(this.constructor.html + this.run.nom + "</div>");
-		this._super(t);
+		t.append(this.constructor.html);
+		this._super(t, this.run.nom, "Sauvegarder");
+		this._pi = this._content.find("#processInfo");
+		this._fv = this._content.find("#fversion");
+		this._fc = this._content.find("#fcolonnes");
+		this._fl = this._content.find("#flignes");
+		this._ft = this._content.find("#ftypes");
+		APP.oncl(this, this._valider, this.save);
+	},
+	
+	onmessage : function(data){
+//		String ptd;
+//		String message;
+//		int type;
+//		int size;
+//		int index;
+//		long totalSize;
+		var t = new AC.HB();
+		t.append("" + data.type);
+		t.append(" Index:" + data.index);
+		t.append(" Size:" + data.size);
+		t.append(" TotalSize:" + data.totalSize);
+		t.append(" Message:" + data.message);
+		t.flush(this._pi);
+	},
+	
+	save : function(){
+		var filtre = {
+				version : APP.normDH(this._fv.val()),
+				lignes : this._fl.val(),
+				colonnes : this._fc.val(),
+				types : this._ft.val()
+		}
+		APP.send("NewDump", {path:APP.config.dir, ptd:this.run.ptd, filtre:filtre}, function(err, data){
+		}, "Nouvelle Sauvegarde");
+
 	},
 	
 	close : function(){

@@ -1,6 +1,10 @@
 package fr.alterconsos.admin;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -8,6 +12,15 @@ import com.google.gson.reflect.TypeToken;
 public class Main implements IMain {
 	public static final Main main = new Main();
 
+	public static final TimeZone timezone = TimeZone.getTimeZone("Europe/Paris");
+
+	public static final SimpleDateFormat sdf1 = new SimpleDateFormat("yyyyMMddHHmmss",
+			Locale.FRANCE);
+
+	static {
+		sdf1.setTimeZone(timezone);
+	}
+	
 	public void onStart() {
 		System.out.println("Browser connecté");
 	}
@@ -27,6 +40,7 @@ public class Main implements IMain {
 		Event.register(GetFromZip.class);
 		Event.register(ReqFiltre.class);
 		Event.register(Filtre.class);
+		Event.register(NewDump.class);
 
 		// Event.register(Personnes.class, new TypeToken<ArrayList<Personne>>() {}.getType());
 
@@ -42,15 +56,18 @@ public class Main implements IMain {
 
 	public static class Run {
 		String encours;
+		int phase = 0;
 		String path;
 		String nom;
-		int nblignes = -1;
+		int nbc = 0;
+		int nbt = 0;
 		String exception;
+		long totalSize = 0;
 	}
 
-	public JsonFile<Config> fconfig;
+	public static JsonFile<Config> fconfig;
 	
-	public Config config() throws Exception{
+	public static Config config() throws Exception{
 		if (fconfig == null)
 			fconfig = new JsonFile<Config>("~.acAdmin.json", Config.class);
 		return fconfig.get();
@@ -68,34 +85,73 @@ public class Main implements IMain {
 		Run runT;
 		Run runD;
 		
-		public synchronized Config chgRun(String ptd, Run arg)  throws Exception{
-			if (arg == null)
-				return this;
-			Run run = new Run();
-			if ("P".equals(ptd) && runP != null) {
-				run = runP;
-			} else if ("T".equals(ptd) && runT != null) {
-				run = runT;
-			} else if ("D".equals(ptd) && runT != null) {
-				run = runD;
+		public Run run(String ptd){
+			if ("P".equals(ptd)) {
+				return runP;
+			} else if ("T".equals(ptd)) {
+				return runT;
+			} else if ("D".equals(ptd)) {
+				return runD;
 			}
+			return null;
+		}
+
+		public String url(String ptd){
+			if ("P".equals(ptd)) {
+				return urlP;
+			} else if ("T".equals(ptd)) {
+				return urlT;
+			} else if ("D".equals(ptd)) {
+				return urlD;
+			}
+			return null;
+		}
+
+		public String pwd(String ptd){
+			if ("P".equals(ptd)) {
+				return pwdP;
+			} else if ("T".equals(ptd)) {
+				return pwdT;
+			} else if ("D".equals(ptd)) {
+				return pwdD;
+			}
+			return null;
+		}
+
+		public void run(String ptd, Run arg){
+			if ("P".equals(ptd)) {
+				runP = arg;
+			} else if ("T".equals(ptd)) {
+				runT = arg;
+			} else if ("D".equals(ptd)) {
+				runD = arg;
+			}
+		}
+		
+		public synchronized Config updRun(String ptd, Run arg)  throws Exception{
+			if (arg == null)
+				
+				return this;
+			Run run = run(ptd);
+			if (run == null)
+				run = new Run();
 			if (arg.encours != null)
 				run.encours = arg.encours;
 			if (arg.path != null)
 				run.path = arg.path;
 			if (arg.nom != null)
 				run.nom = arg.nom;
-			if (arg.nblignes != -1)
-				run.nblignes = arg.nblignes;
+			if (arg.nbc != -1)
+				run.nbc = arg.nbc;
+			if (arg.nbt != -1)
+				run.nbt = arg.nbt;
+			if (arg.phase != -1)
+				run.phase = arg.phase;
+			if (arg.totalSize != -1)
+				run.totalSize = arg.totalSize;
 			if (arg.exception != null)
 				run.exception = arg.exception;
-			if ("P".equals(ptd)) {
-				runP = run;
-			} else if ("T".equals(ptd)) {
-				runT = run;
-			} else if ("D".equals(ptd)) {
-				runD = run;
-			}
+			run(ptd, run);
 			fconfig.set(this);
 			return this;			
 		}
@@ -127,7 +183,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			return main.config().chgDir(new FS(dir).path());
+			return config().chgDir(new FS(dir).path());
 		}
 	}
 
@@ -136,7 +192,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Config cfg = main.config();
+			Config cfg = config();
 			return cfg.chgDir(new FS(cfg.dir).newDir(newdir).path());
 		}
 	}
@@ -148,7 +204,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			return main.config().chgSrv(ptd, url, pwd);
+			return config().chgSrv(ptd, url, pwd);
 		}
 	}
 
@@ -156,7 +212,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Config cfg = main.config();
+			Config cfg = config();
 			String path = new FS(cfg.dir).path();
 			if (!path.equals(cfg.dir))
 				cfg.chgDir(path);
@@ -175,7 +231,7 @@ public class Main implements IMain {
 		@Override
 		public Object process() throws Exception {
 			Dirs d = new Dirs();
-			d.dirs = new FS(main.config().dir).subdirs();
+			d.dirs = new FS(config().dir).subdirs();
 			d.callId = callId;
 			return d;
 		}
@@ -229,19 +285,53 @@ public class Main implements IMain {
 		}
 	}
 	
-	public static class Filtre implements IEvent {
+	
+	public static class NewDump implements IEvent {
+		String path;
+		String ptd;
+		Filtre filtre;
+		
+		@Override
+		public Object process() throws Exception {
+			if (filtre != null && filtre.isVide())
+				filtre = null;
+			Config cfg = config();
+			FS fs = new FS(cfg.dir);
+			String path = fs.path();
+			if (!path.equals(cfg.dir))
+				cfg.chgDir(path);
+			Run run = cfg.run(ptd);
+			if (run != null)
+				throw new Exception("Sauvegarde / restauration en cours pour le serveur " + ptd);
+			String nom = ptd + sdf1.format(new Date()) + (filtre != null ? "P" : "C");
+			fs.newDir(nom);
+			if (filtre != null)
+				new JsonFile<Filtre>(path + nom + "/filtre.json", Filtre.class).set(filtre);
+			run = new Run();
+			run.path = path;
+			run.encours = "S" + (filtre != null ? "P" : "C") + "0";
+			run.nom = nom;
+			run.nbc = 0;
+			run.nbt = 0;
+			run.phase = 0;
+			cfg.updRun(ptd, run);
+			new Process(ptd, run, filtre, cfg.pwd(ptd), cfg.url(ptd));
+			return null;
+		}
+	}
+	
+	public static class Filtre {
 		long version;
 		String lignes;
 		String colonnes;
 		String types;
-		transient String path;
 		
-		@Override
-		public Object process() throws Exception {
-			new JsonFile<Filtre>(path + "/filtre.json", Filtre.class).set(this);
-			return null;
+		public boolean isVide(){
+			return (version == 0 && 
+					(lignes == null || "".equals(lignes)) &&
+					(colonnes == null || "".equals(colonnes)) &&
+					(types == null || "".equals(types)));
 		}
-
 	}
 
 	public static class ReqFiltre implements IEvent {
@@ -249,9 +339,7 @@ public class Main implements IMain {
 
 		@Override
 		public Object process() throws Exception {
-			Filtre f = new JsonFile<Filtre>(path + "/filtre.json", Filtre.class).get();
-			f.path = path;
-			return f;
+			return new JsonFile<Filtre>(path + "/filtre.json", Filtre.class).get();
 		}
 	}
 	

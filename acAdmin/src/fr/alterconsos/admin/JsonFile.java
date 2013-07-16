@@ -13,6 +13,7 @@ public class JsonFile<T> {
 	private File file;
 	private Gson gson = new Gson();
 	private T content;
+	private String scontent;
 	
 	@SuppressWarnings("unchecked")
 	public JsonFile(String path, Class<?> clazz) throws Exception {
@@ -24,30 +25,39 @@ public class JsonFile<T> {
 		}
 		file = new File(p);
 		int l = file.exists() && file.isFile() ? (int) file.length() : 0;
-		String s;
 		if (l != 0) {
 			BufferedInputStream is = new BufferedInputStream(
 					new FileInputStream(file));
 			byte[] buf = new byte[l];
 			is.read(buf);
 			is.close();
-			s = new String(buf, "UTF-8");
+			scontent = new String(buf, "UTF-8");
 		} else
-			s = "{}";
-		content = (T) gson.fromJson(s, clazz);
+			scontent = clazz == null ? "" : (clazz.isArray() ? "[]" : "{}");
+		if (clazz != null)
+			content = (T) gson.fromJson(scontent, clazz);
 	}
 	
 	public T get(){
 		return content;
 	}
-	
+
+	public void set(String content) throws Exception{
+		this.scontent = content;
+		save();
+	}
+
 	public void set(T content) throws Exception{
 		this.content = content;
-		byte[] buf = gson.toJson(content).getBytes("UTF-8");
+		this.scontent = gson.toJson(content);
+		save();
+	}
+
+	private void save() throws Exception{
+		byte[] buf = scontent.getBytes("UTF-8");
 		BufferedOutputStream os = new BufferedOutputStream(
 				new FileOutputStream(file));
 		os.write(buf);
-		os.close();
+		os.close();		
 	}
-
 }
