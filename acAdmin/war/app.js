@@ -697,6 +697,7 @@ $.Class("AC.Main", {
 		+ "<div class='acSpace2'></div>"
 		
 		+ "<div class='ac-fontMediumB acBGGris' id='acCurrentDumpT'>(aucun dump sélectionné)</div>"
+		+ "<div class='ac-fontMedium' id='cdFiltre'></div>"
 		+ "<table class='acT2t'>"
 		+ "<tr class='acTR1'><td class='ac-fontMediumBI'>Lignes</td>"
 		+ "<td class='ac-fontMediumBI ac40'>Date / Heure</td></tr></table>"
@@ -770,6 +771,7 @@ $.Class("AC.Main", {
 		
 		this._work.html(this.constructor.html);
 		this._titleCD = this._work.find("#acCurrentDumpT");
+		this._cdFiltre = this._work.find("#cdFiltre");
 		this._contCD = this._work.find("#acCurrentDumpC");
 		this._contD = this._work.find("#dumpsC");
 		this._lineT = this._work.find("#lineT");
@@ -845,6 +847,7 @@ $.Class("AC.Main", {
 		this.currentDump = null;
 		this.currentDumpPath = null;
 		this._titleCD.html("(aucun dump sélectionné)");
+		this._cdFiltre.html("");
 		this._contCD.html("");
 		this.resetCurrentLine();
 	},
@@ -876,6 +879,26 @@ $.Class("AC.Main", {
 			else
 				self.displayDump({lines:[]});
 		}, "Lecture de la sauvegarde");	
+		if (this.currentDump.substring(15) == "P") {
+			APP.send("ReqFiltre", {path:this.currentDumpPath + this.currentDump}, function(err, data){
+				if (!err) {
+					var t = new AC.HB();
+					self.editFiltre(t, data);
+					t.flush(self._cdFiltre);
+				}
+			}, "Lecture du filtre");
+		}
+	},
+	
+	editFiltre : function(t, f){
+		if (f.version)
+			t.append("<div><i>Modifiés après : </i><b>" + APP.editDH("" + f.version, 2) + "</b></div>");
+		if (f.lignes)
+			t.append("<div><i>Lignes commençant par : </i><b>" + f.lignes + "</b></div>");
+		if (f.lignes)
+			t.append("<div><i>Colonnes commençant par : </i><b>" + f.colonnes + "</b></div>");
+		if (f.lignes)
+			t.append("<div><i>Cellules d'un des types suivants : </i><b>" + f.types + "</b></div>");
 	},
 	
 	displayDump : function(data){

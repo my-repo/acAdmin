@@ -14,11 +14,6 @@ public class Main implements IMain {
 
 	public void onEnd() {
 		System.out.println("Browser déconnecté");
-		try {
-			config().save();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
 	}
 
 	public void beforeInit() throws Exception {
@@ -30,6 +25,8 @@ public class Main implements IMain {
 		Event.register(SetCurrentDump.class);
 		Event.register(SetCurrentZip.class);
 		Event.register(GetFromZip.class);
+		Event.register(ReqFiltre.class);
+		Event.register(Filtre.class);
 
 		// Event.register(Personnes.class, new TypeToken<ArrayList<Personne>>() {}.getType());
 
@@ -38,17 +35,9 @@ public class Main implements IMain {
 		String path = fs.path();
 		if (!path.equals(cfg.dir)) {
 			cfg.dir = path;
-			cfg.save();
+			fconfig.set(cfg);
 		}
 		System.out.println("Config :\n" + new Gson().toJson(config()));
-	}
-
-	public Config config() throws Exception {
-		try {
-			return (Config) Bridge.AConfig.get(Config.class);
-		} catch (Exception e) {
-			throw e;
-		}
 	}
 
 	public static class Run {
@@ -59,7 +48,15 @@ public class Main implements IMain {
 		String exception;
 	}
 
-	public static class Config extends Bridge.AConfig {
+	public JsonFile<Config> fconfig;
+	
+	public Config config() throws Exception{
+		if (fconfig == null)
+			fconfig = new JsonFile<Config>("~.acAdmin.json", Config.class);
+		return fconfig.get();
+	}
+	
+	public class Config {
 		String dir = "D:/temp";
 		String pwdP = "";
 		String pwdT = "1234";
@@ -99,13 +96,13 @@ public class Main implements IMain {
 			} else if ("D".equals(ptd)) {
 				runD = run;
 			}
-			this.save();
+			fconfig.set(this);
 			return this;			
 		}
 		
 		public synchronized Config chgDir(String dir) throws Exception{
 			this.dir = dir;
-			this.save();
+			fconfig.set(this);
 			return this;
 		}
 		
@@ -120,7 +117,7 @@ public class Main implements IMain {
 				this.urlD = url;
 				this.pwdD = pwd;
 			}
-			this.save();
+			fconfig.set(this);
 			return this;
 		}
 	}
@@ -231,6 +228,33 @@ public class Main implements IMain {
 			return l;
 		}
 	}
+	
+	public static class Filtre implements IEvent {
+		long version;
+		String lignes;
+		String colonnes;
+		String types;
+		transient String path;
+		
+		@Override
+		public Object process() throws Exception {
+			new JsonFile<Filtre>(path + "/filtre.json", Filtre.class).set(this);
+			return null;
+		}
+
+	}
+
+	public static class ReqFiltre implements IEvent {
+		String path;
+
+		@Override
+		public Object process() throws Exception {
+			Filtre f = new JsonFile<Filtre>(path + "/filtre.json", Filtre.class).get();
+			f.path = path;
+			return f;
+		}
+	}
+	
 
 	/*******************************************************/
 

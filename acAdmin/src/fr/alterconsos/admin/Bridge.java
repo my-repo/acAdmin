@@ -1,10 +1,5 @@
 package fr.alterconsos.admin;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -13,8 +8,6 @@ import org.java_websocket.WebSocket;
 import org.java_websocket.WebSocketImpl;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
-
-import com.google.gson.Gson;
 
 public class Bridge extends WebSocketServer {
 	private static WebSocket theConn = null;
@@ -137,50 +130,6 @@ public class Bridge extends WebSocketServer {
 		if (s != null && s.length() != 0)
 			theConn.send("{\"type\":\"" + (err ? "err" : "log")
 					+ "\", \"data\":" + s + "}");
-	}
-
-	public static abstract class AConfig {
-		public static AConfig config = null;
-
-		public static AConfig get(Class<?> clazz) throws Exception {
-			if (config != null)
-				return config;
-			try {
-				File f = new File(System.getProperty("user.home")
-						+ "\\.acAdmin.json");
-				int l = f.exists() && f.isFile() ? (int) f.length() : 0;
-				if (l != 0) {
-					BufferedInputStream is = new BufferedInputStream(
-							new FileInputStream(f));
-					byte[] buf = new byte[l];
-					is.read(buf);
-					is.close();
-					config = (AConfig) new Gson().fromJson(new String(buf,
-							"UTF-8"), clazz);
-					return config;
-				}
-			} catch (Exception e) {
-			}
-			try {
-				config = (AConfig) clazz.newInstance();
-			} catch (Exception e) {
-				return null;
-			}
-			config.save();
-			return config;
-		}
-
-		public void save() throws Exception {
-			File f = new File(System.getProperty("user.home")
-					+ "\\.acAdmin.json");
-			Gson gson = new Gson();
-			String content = gson.toJson(this);
-			byte[] buf = content.getBytes("UTF-8");
-			BufferedOutputStream os = new BufferedOutputStream(
-					new FileOutputStream(f));
-			os.write(buf);
-			os.close();
-		}
 	}
 
 	public static void start(IMain main, int port) throws InterruptedException,
