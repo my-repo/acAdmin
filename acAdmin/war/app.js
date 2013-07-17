@@ -761,16 +761,11 @@ $.Class("AC.Main", {
 		this.onreadyDone = true;
 		APP.log("Chargement de la configuration ...");
 		AC.Run.start();
+		APP.register("Run", AC.Run);
 		this._configuration = $("#configuration");
 		APP.oncl(this, this._configuration, function(){
 			new AC.Config();
 		});
-		
-		this._test = $("#test");
-		APP.oncl(this, this._test, function(){
-			new AC.Test();
-		});
-
 		var self = this;
 		APP.send("ReqConfig", {}, function(err, data){
 			if (!err) {
@@ -803,7 +798,6 @@ $.Class("AC.Main", {
 	
 	display : function(){
 		APP.btnEnable(this._configuration, true);
-		APP.btnEnable(this._test, true);
 		this.getSubDirs();
 	},
 	
@@ -1162,32 +1156,50 @@ $.Class("AC.Run", {
 		for(v in this.all)
 			APP.btnEnable(this.all[v]._btn, true);
 	},
+	encours : ["", "Sv Partielle", "Sauvegarde", "Restauration"],
 	onmessage : function(data){
 		var run = this.all[data.ptd];
-		if (run && run.form)
-			run.form.onmessage(data);
+		if (!run)
+			return;
+		run.onmessage(data);
 	}
 },{
 	init : function(ptd){
-		APP.register("ProcessInfo", this.constructor);
 		this.ptd = ptd;
 		this.nom = this.constructor.libs[ptd];
 		this._btn = $("#run" + this.ptd);
-		this.status = "";
 		this.editBtn();
 		APP.oncl(this, this._btn, this.openForm);
 	},
 	
 	editBtn : function(){
-		var st = this.config ? this.config.encours : "?";
-		if (this.status)
-			st += " [" + this.status + "]";
-		this._btn.html(this.nom + " " + st);
+		if (!this.run) {
+			this._btn.html(this.nom);
+			return;
+		}
+		var st = this.constructor.encours[this.run.encours] + 
+			(this.run.pause ? (this.run.err ? " en erreur" : " en pause") : " en exécution");
+		var n = this.run.phase == 1 ? (" [" + this.run.nbc + "/" + this.run.nbt + "]") : "[init]";
+		this._btn.html(this.nom + " " + st + n);
 	},
 	
 	config : function(){
-		this.config = APP.config["run" + this.ptd];
+		this.run = APP.config["run" + this.ptd];
 		this.editBtn();
+	},
+	
+	onmessage : function(data){
+		if (!data.encours){
+			if (this.form)
+				this.form.close();
+			this.run = null;
+			this.editBtn();
+			return;
+		}
+		this.run = data;
+		this.editBtn();
+		if (this.form)
+			this.form.onmessage();
 	},
 	
 	openForm : function(){
@@ -1199,7 +1211,8 @@ $.Class("AC.Run", {
 	closeForm : function(){
 		this.form = null;
 		this.constructor.current = null;
-		this.constructor.enable();		
+		this.constructor.enable();	
+		AC.Main.current.getSubDirs();
 	}
 	
 });
@@ -1217,35 +1230,77 @@ AC.PopForm("AC.RunForm", {
 	
 	+ "<div class='acSpace2' id='processInfo'></div>"
 
-	
 }, {
 	init : function(run){
 		this.run = run;
 		var t = new AC.HB();
 		t.append(this.constructor.html);
-		this._super(t, this.run.nom, "Sauvegarder");
+		this._super(t, this.run.nom, "???");
 		this._pi = this._content.find("#processInfo");
 		this._fv = this._content.find("#fversion");
 		this._fc = this._content.find("#fcolonnes");
 		this._fl = this._content.find("#flignes");
 		this._ft = this._content.find("#ftypes");
-		APP.oncl(this, this._valider, this.save);
+		APP.oncl(this, this._valider, this.doIt);
+		this.setValider();
 	},
 	
-	onmessage : function(data){
+	setValider : function(){
+		var run = this.run.run;
+		if (!run) {
+			this._valider.html("Sauvegarder");
+		} else {
+			if (run.pause){
+				this._valider.html("Reprise");
+			} else {
+				this._valider.html("Pause");
+			}
+		}
+	},
+	
+	onmessage : function(){
 //		String ptd;
-//		String message;
-//		int type;
-//		int size;
-//		int index;
-//		long totalSize;
+//		int encours; // 1: svg partielle, 2: svg, 3: rest
+//		int phase = 0; // 1: initiale 2:lignes 
+//		String path;
+//		String nom;
+//		int nbc = 0;
+//		int nbt = 0;
+//		String err;
+//		int size = 0;
+//		long totalSize = 0;
+		var data = this.run.run;
 		var t = new AC.HB();
-		t.append("" + data.type);
-		t.append(" Index:" + data.index);
-		t.append(" Size:" + data.size);
-		t.append(" TotalSize:" + data.totalSize);
-		t.append(" Message:" + data.message);
+		t.append("<div><i>Path :</i><b>" + data.path + "</b></div>");
+		t.append("<div><i>Nom :</i><b>" + data.nom + "</b></div>");
+		t.append("<div><i>Opération :</i><b>" + AC.Run.encours[data.encours] + "</b></div>");
+		t.append("<div><b>" + (data.pause ? (data.err ? "En erreur" : "En pause") : "En exécution") + "</b></div>");
+		if (data.phase != 1)
+			t.append("<div><i>Phase initiale</i></div>");
+		else
+			t.append("<div><i>Lignes traitées :</i><b>" + data.nbc + " sur " + data.nbt + "</b></div>");
+		var vol = Math.floor(data.totalSize / 1000000);
+		var volk = Math.floor(data.totalSize / 1000);
+		vol = data.totalSize == 0 ? "0o" : (vol == 0 ? 
+				(volk == 0 ? "" + data.totalSize + "o" : ("" + volk + "Ko")) : ("" + vol + "Mo"));
+		t.append("<div><i>Volume traité :</i><b>" + vol + "</b></div>");
+		if (data.err)
+			t.append("<div><i>Erreur :</i><b>" + data.err + "</b></div>");
 		t.flush(this._pi);
+		this.setValider();
+	},
+	
+	doIt : function() {
+		var run = this.run.run;
+		if (!run) {
+			this.save();
+		} else {
+			if (run.pause){
+				this.reprise();
+			} else {
+				this.pause();
+			}
+		}
 	},
 	
 	save : function(){
@@ -1256,10 +1311,36 @@ AC.PopForm("AC.RunForm", {
 				types : this._ft.val()
 		}
 		APP.send("NewDump", {path:APP.config.dir, ptd:this.run.ptd, filtre:filtre}, function(err, data){
-		}, "Nouvelle Sauvegarde");
-
+		}, "Nouvelle sauvegarde");
 	},
-	
+
+	reprise : function(){
+		APP.send("RepriseDump", {ptd:this.run.ptd}, function(err, data){
+		}, "Reprise de la sauvegarde");
+	},
+
+	pause : function(){
+		var filtre = {
+				version : APP.normDH(this._fv.val()),
+				lignes : this._fl.val(),
+				colonnes : this._fc.val(),
+				types : this._ft.val()
+		}
+		APP.send("PauseDump", {ptd:this.run.ptd}, function(err, data){
+		}, "Pause de la sauvegarde");
+	},
+
+	abandon : function(){
+		var filtre = {
+				version : APP.normDH(this._fv.val()),
+				lignes : this._fl.val(),
+				colonnes : this._fc.val(),
+				types : this._ft.val()
+		}
+		APP.send("NewDump", {path:APP.config.dir, ptd:this.run.ptd, filtre:filtre}, function(err, data){
+		}, "Nouvelle Sauvegarde");
+	},
+
 	close : function(){
 		this._super();
 		this.run.closeForm();

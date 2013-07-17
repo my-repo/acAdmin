@@ -42,9 +42,7 @@ public class Process extends Thread {
 			return procP;
 		if ("T".equals(ptd))
 			return procT;
-		if ("D".equals(ptd))
-			return procD;
-		return null;
+		return procD;
 	}
 
 	String ptd;
@@ -55,12 +53,12 @@ public class Process extends Thread {
 	String url;
 	String[] lignes;
 	String header;
-	int size;
-
+	long size;
+	
 	public Process(String ptd, Main.Run run, Main.Filtre filtre, String pwd, String url)
 			throws Exception {
 		if (get(ptd) != null)
-			throw new Exception("Process " + ptd + " déjà en exécution");
+			throw new Bridge.AppEx("Process " + ptd + " déjà en exécution");
 		this.ptd = ptd;
 		this.run = run;
 		this.pwd = toSHA1(pwd + "00");
@@ -74,106 +72,93 @@ public class Process extends Thread {
 		if ("D".equals(ptd))
 			procD = this;
 		this.filtre = filtre;
+		run.pause = false;
+		run.err = null;
+		Main.config().updRun(run);
 		this.start();
 	}
 
-	public static class ProcessInfo {
-		String ptd;
-		String message;
-		int type;
-		int size;
-		int index;
-		long totalSize;
-	}
-
-	public void save() throws Exception {
-		if (stop)
-			throw new Exception("Exécution mise en pause sur demande");
-		Main.Config cfg = Main.config();
-		cfg.updRun(ptd, run);
-	}
-
-	public void stopIt() {
+	public void stopIt() throws Exception {
 		stop = true;
 	}
 
 	public void run() {
 		try {
-			if (run.encours.startsWith("S"))
+			if (run.encours == 1 || run.encours == 2)
 				sauvegarde();
 			else
 				restauration();
+			if (!stop)
+				Main.config().closeRun(run);
+			else {
+				run.pause = true;
+				try {
+					Main.config().updRun(run);
+				} catch (Exception e1) {
+					Bridge.ex(e1);
+				}
+			}			
+			int vol = (int) (run.totalSize / 1000000);
+			int volk = (int) (run.totalSize / 1000);
+			String x = run.totalSize == 0 ? "0o" : 
+				(vol == 0 ? (volk == 0 ? run.totalSize + "o" : (volk + "Ko") ) : vol + "Mo");
+			String msg = (run.encours == 1 || run.encours == 2 ? "Sauvegarde " : "Restauration ") + ptd 
+					+ (stop ? " mise en pause. " : " terminée avec succès. ") 
+					+ run.nbc + "/" + run.nbt + " ligne(s). Volume total : " + x;
+			Bridge.log(msg);
 		} catch (Exception e) {
-			ProcessInfo pi = new ProcessInfo();
-			pi.type = -1;
-			pi.message = Bridge.exc(e);
-			pi.ptd = ptd;
-			Bridge.send(pi);
+			run.err = Bridge.exc(e);
+			run.pause = true;
+			try {
+				Main.config().updRun(run);
+			} catch (Exception e1) {
+				Bridge.ex(e1);
+			}
 		}
-	}
-
-	public void close() {
-		ProcessInfo pi = new ProcessInfo();
-		pi.type = 9;
-		pi.message = "Sauvegarde terminée avec succès";
-		pi.ptd = ptd;
-		Bridge.send(pi);
+		if ("P".equals(ptd))
+			procP = null;
+		if ("T".equals(ptd))
+			procT = null;
+		if ("D".equals(ptd))
+			procD = null;
 	}
 
 	public void sauvegarde() throws Exception {
+		if (stop)
+			return;
 		if (run.phase == 0) {
 			lignes = listLines();
+			if (lignes.length == 0)
+				return;
 			run.totalSize = 0;
 			run.nbt = lignes.length;
 			run.nbc = 0;
-			run.phase = run.nbt == 0 ? 9 : 1;
-			save();
-			ProcessInfo pi = new ProcessInfo();
-			pi.type = 1;
-			pi.size = lignes.length;
-			pi.index = 0;
-			pi.totalSize = run.totalSize;
-			pi.message = lignes.length + " lignes à sauvegarder";
-			pi.ptd = ptd;
-			Bridge.send(pi);
+			run.phase = 1;
+			Main.config().updRun(run);
 		} else {
 			lignes = new JsonFile<String[]>(run.path + run.nom + "/lignes.json", String[].class)
 					.get();
 		}
 		while (run.nbc < run.nbt) {
+			if (stop)
+				return;
 			String ligne = lignes[run.nbc];
 			dump(ligne);
 			run.totalSize += this.size;
-			int size = (this.size / 1000);
-			if (size == 0 && this.size != 0)
-				size = 1;
-			save();
-			ProcessInfo pi = new ProcessInfo();
-			pi.type = 2;
-			pi.totalSize = run.totalSize;
-			pi.size = size;
-			pi.index = run.nbc + 1;
-			pi.message = "Ligne : " + ligne + " (" + size + "Ko)";
-			pi.ptd = ptd;
-			Bridge.send(pi);
 			run.nbc++;
+			Main.config().updRun(run);
 		}
-		ProcessInfo pi = new ProcessInfo();
-		pi.type = 9;
-		pi.message = "Sauvegarde terminée avec succès";
-		pi.ptd = ptd;
-		Bridge.send(pi);
-		return;
 	}
 
 	private String[] listLines() throws Exception {
-		byte[] respb = post(setArgs("linesS", filtre.lignes, null, filtre.version, null), 0);
+		byte[] respb = post(setArgs("linesS", filtre != null ? filtre.lignes : null, 
+				null, filtre != null ? filtre.version : 0, null), false);
 		String resp = new String(respb, "UTF-8");
 		if (!resp.startsWith("$")) {
 			new JsonFile<String[]>(run.path + run.nom + "/lignes.json", null).set(resp);
 			return new Gson().fromJson(resp, String[].class);
 		} else {
-			throw new Exception(resp + "\n");
+			throw new Bridge.AppEx(resp);
 		}
 	}
 
@@ -194,8 +179,13 @@ public class Process extends Thread {
 		return sb.toString().getBytes("UTF-8");
 	}
 
-	private byte[] post(byte[] args, int header) throws Exception {
-		URLConnection connection = new URL(url + "dumpload").openConnection();
+	private byte[] post(byte[] args, boolean hasHeader) throws Exception {
+		URLConnection connection;
+		try {
+			connection = new URL(url + "dumpload").openConnection();
+		} catch (Exception e) {
+			throw new Bridge.AppEx("Connexion au serveur impossible");
+		}
 		connection.setDoOutput(true);
 		OutputStream os = connection.getOutputStream();
 		os.write(args);
@@ -203,12 +193,14 @@ public class Process extends Thread {
 		InputStream is = connection.getInputStream();
 		byte[] buf = new byte[4096];
 		ByteArrayOutputStream os2 = new ByteArrayOutputStream(16192);
-		if (header != 0) {
-			byte[] pfx = new byte[header];
-			is.read(pfx);
-			this.header = new String(pfx, "UTF-8");
+		if (hasHeader) {
+			StringBuffer sb = new StringBuffer();
+			int b;
+			while ( (b = is.read()) > 0)
+				sb.append((char)b);
+			this.header = sb.toString();
 			if (this.header.startsWith("$"))
-				throw new Exception(this.header);
+				throw new Bridge.AppEx(this.header);
 		}
 		int l = 0;
 		while ((l = is.read(buf)) > 0)
@@ -220,9 +212,12 @@ public class Process extends Thread {
 	}
 
 	private void dump(String ligne) throws Exception {
-		byte[] resp = post(setArgs("dumpS", ligne, filtre.colonnes, filtre.version, filtre.types),
-				17);
-		this.size = resp.length - 17;
+		byte[] resp = post(setArgs("dumpS", ligne, 
+				filtre != null ? filtre.colonnes : null, 
+				filtre != null ? filtre.version : 0, 
+				filtre != null ? filtre.types : null),
+				true);
+		this.size = resp.length - this.header.length();
 		File zf = new File(run.path + run.nom + "/.temp.zip");
 		FileOutputStream zos = new FileOutputStream(zf);
 		zos.write(resp);

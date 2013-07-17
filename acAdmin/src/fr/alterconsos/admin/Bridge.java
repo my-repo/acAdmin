@@ -17,7 +17,19 @@ public class Bridge extends WebSocketServer {
 	private static IMain theMain;
 	private static Bridge theBridge;
 
+	public static class AppEx extends Exception {
+		private static final long serialVersionUID = 1L;
+
+		public AppEx(String message){
+			super(message);
+		}
+	}
+	
 	public static String exc(Exception e){
+		if (e == null)
+			return "Exception";
+		if (e.getClass() == AppEx.class)
+			return e.getMessage();
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		e.printStackTrace(new PrintStream(bos));
 		try {
@@ -127,7 +139,7 @@ public class Bridge extends WebSocketServer {
 
 	public static void ex(Exception e) {
 		e.printStackTrace();
-		log(e.getMessage(), true);
+		log(exc(e), true);
 	}
 
 	public static void err(String text) {

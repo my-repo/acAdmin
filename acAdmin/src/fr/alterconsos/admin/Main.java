@@ -41,6 +41,8 @@ public class Main implements IMain {
 		Event.register(ReqFiltre.class);
 		Event.register(Filtre.class);
 		Event.register(NewDump.class);
+		Event.register(PauseDump.class);
+		Event.register(RepriseDump.class);
 
 		// Event.register(Personnes.class, new TypeToken<ArrayList<Personne>>() {}.getType());
 
@@ -55,13 +57,16 @@ public class Main implements IMain {
 	}
 
 	public static class Run {
-		String encours;
-		int phase = 0;
+		String ptd;
+		int encours; // 1: svg partielle, 2: svg, 3: rest, 0:fermeture
+		int phase = 0; // 1: initiale 2:lignes 
+		boolean pause = false;
 		String path;
 		String nom;
 		int nbc = 0;
 		int nbt = 0;
-		String exception;
+		String err;
+		int size = 0;
 		long totalSize = 0;
 	}
 
@@ -71,6 +76,10 @@ public class Main implements IMain {
 		if (fconfig == null)
 			fconfig = new JsonFile<Config>("~.acAdmin.json", Config.class);
 		return fconfig.get();
+	}
+	
+	public class CloseRun {
+		String ptd;
 	}
 	
 	public class Config {
@@ -90,10 +99,8 @@ public class Main implements IMain {
 				return runP;
 			} else if ("T".equals(ptd)) {
 				return runT;
-			} else if ("D".equals(ptd)) {
+			} else 
 				return runD;
-			}
-			return null;
 		}
 
 		public String url(String ptd){
@@ -101,10 +108,8 @@ public class Main implements IMain {
 				return urlP;
 			} else if ("T".equals(ptd)) {
 				return urlT;
-			} else if ("D".equals(ptd)) {
+			} else 
 				return urlD;
-			}
-			return null;
 		}
 
 		public String pwd(String ptd){
@@ -112,47 +117,56 @@ public class Main implements IMain {
 				return pwdP;
 			} else if ("T".equals(ptd)) {
 				return pwdT;
-			} else if ("D".equals(ptd)) {
+			} else 
 				return pwdD;
-			}
-			return null;
 		}
 
-		public void run(String ptd, Run arg){
-			if ("P".equals(ptd)) {
+		public void run(Run arg){
+			if ("P".equals(arg.ptd)) {
 				runP = arg;
-			} else if ("T".equals(ptd)) {
+			} else if ("T".equals(arg.ptd)) {
 				runT = arg;
-			} else if ("D".equals(ptd)) {
+			} else
 				runD = arg;
-			}
+		}
+
+		public synchronized Config closeRun(Run arg)  throws Exception{
+			if (arg == null)
+				return this;
+			Run run = run(arg.ptd);
+			if (run == null)
+				return this;
+			run.encours = 0;
+			Bridge.send(run);		
+			if ("P".equals(arg.ptd)) {
+				runP = null;;
+			} else if ("T".equals(arg.ptd)) {
+				runT = null;
+			} else 
+				runD = null;
+			fconfig.set(this);
+			return this;						
 		}
 		
-		public synchronized Config updRun(String ptd, Run arg)  throws Exception{
+		public synchronized Config updRun(Run arg)  throws Exception{
 			if (arg == null)
-				
 				return this;
-			Run run = run(ptd);
+			Run run = run(arg.ptd);
 			if (run == null)
 				run = new Run();
-			if (arg.encours != null)
-				run.encours = arg.encours;
-			if (arg.path != null)
-				run.path = arg.path;
-			if (arg.nom != null)
-				run.nom = arg.nom;
-			if (arg.nbc != -1)
-				run.nbc = arg.nbc;
-			if (arg.nbt != -1)
-				run.nbt = arg.nbt;
-			if (arg.phase != -1)
-				run.phase = arg.phase;
-			if (arg.totalSize != -1)
-				run.totalSize = arg.totalSize;
-			if (arg.exception != null)
-				run.exception = arg.exception;
-			run(ptd, run);
+			run.ptd = arg.ptd;
+			run.encours = arg.encours;
+			run.path = arg.path;
+			run.nom = arg.nom;
+			run.nbc = arg.nbc;
+			run.nbt = arg.nbt;
+			run.phase = arg.phase;
+			run.totalSize = arg.totalSize;
+			run.err = arg.err;
+			run.size = arg.size;
+			run(run);
 			fconfig.set(this);
+			Bridge.send(run);
 			return this;			
 		}
 		
@@ -302,24 +316,59 @@ public class Main implements IMain {
 				cfg.chgDir(path);
 			Run run = cfg.run(ptd);
 			if (run != null)
-				throw new Exception("Sauvegarde / restauration en cours pour le serveur " + ptd);
+				throw new Bridge.AppEx("Sauvegarde / restauration en cours pour le serveur " + ptd);
 			String nom = ptd + sdf1.format(new Date()) + (filtre != null ? "P" : "C");
 			fs.newDir(nom);
 			if (filtre != null)
 				new JsonFile<Filtre>(path + nom + "/filtre.json", Filtre.class).set(filtre);
 			run = new Run();
 			run.path = path;
-			run.encours = "S" + (filtre != null ? "P" : "C") + "0";
+			run.encours = filtre != null ? 1 : 2;
 			run.nom = nom;
 			run.nbc = 0;
 			run.nbt = 0;
 			run.phase = 0;
-			cfg.updRun(ptd, run);
+			run.ptd = ptd;
+			run.err = null;
+			run.totalSize = 0;
+			cfg.updRun(run);
 			new Process(ptd, run, filtre, cfg.pwd(ptd), cfg.url(ptd));
 			return null;
 		}
 	}
-	
+
+	public static class PauseDump implements IEvent {
+		String ptd;
+		
+		@Override
+		public Object process() throws Exception {
+			Process.get(ptd).stopIt();
+			return null;
+		}
+	}
+
+	public static class RepriseDump implements IEvent {
+		String ptd;
+		
+		@Override
+		public Object process() throws Exception {
+			Config cfg = config();
+			Run run = cfg.run(ptd);
+			if (run == null)
+				throw new Bridge.AppEx("Reprise de sauvegarde / restauration impossible (pas en cours) pour le serveur " + ptd);
+			Process p = Process.get(ptd);
+			if (p != null)
+				throw new Bridge.AppEx("Reprise de sauvegarde / restauration impossible (déjà en exécution) pour le serveur " + ptd);
+			Filtre filtre = null;
+			if (run.nom.endsWith("P"))
+				filtre = new JsonFile<Filtre>(run.path + run.nom + "/filtre.json", Filtre.class).get();
+			run.pause = false;
+			cfg.updRun(run);
+			new Process(ptd, run, filtre, cfg.pwd(ptd), cfg.url(ptd));
+			return null;
+		}
+	}
+
 	public static class Filtre {
 		long version;
 		String lignes;
