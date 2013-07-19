@@ -80,7 +80,10 @@ $.Class("AC.PopForm", {
 	html1 : "<div class='acBtnFermer' id='fermer'></div>"
 		+ "<div id='title' class='acPopFormTitle ac-fontLargeBI'></div>"
 		+ "<div id='innerDiv' class='acPopFormDiv ac-fontMedium'>",
-	html2 : "</div><div class='acBtn acBtnValider ac-fontLargeBI' id='valider'>"
+		
+	html2 : "<div class='acBtn acBtnValider ac-fontLargeBI' id='validerG'>Abandonner</div>",
+	
+	html3 : "<div class='acBtn acBtnValider ac-fontLargeBI' id='valider'>Valider</div>"
 
 }, {
 
@@ -93,10 +96,12 @@ $.Class("AC.PopForm", {
 		_content.css("z-index", 202);
 		this._content = _content;
 		hb.prepend(this.constructor.html1);
-		if (valider)
-			hb.append(this.constructor.html2).append(valider).append("</div>");
-		else
-			hb.append("</div>");
+		hb.append("</div>");
+		if (valider == 2)
+			hb.append(this.constructor.html2);
+		if (valider > 0)
+			hb.append(this.constructor.html3);
+		hb.append("<div class='acEnd'></div>");
 		hb.flush(_content);
 		if (title)
 			_content.find("#title").html(title.escapeHTML());
@@ -113,6 +118,7 @@ $.Class("AC.PopForm", {
 		this.constructor.currentForm = this;
 		this._innerDiv = _content.find("#innerDiv");
 		this._valider = _content.find("#valider");
+		this._validerG = _content.find("#validerG");
 		APP.oncl(this, "fermer", this.close);
 		APP.oncl(this, 	this.constructor._acMask);
 	},
@@ -487,7 +493,7 @@ AC.PopForm("AC.Config", {
 		+ "<td class='acTD40'><input type='text' id='PwdDInp'></input></td>"
 		+ "<td class='acTDR'><div class='ac-fontMediumB acBtn' id='OkDBtn'>OK</div></td></tr></table>"
 
-		+ "<div class='ac-fontMediumBI'>Répertoire contenant les dumps</div>"
+		+ "<div class='ac-fontMediumBI'>Répertoire des sauvegardes</div>"
 		+ "<div class='ac-fontMediumB acBtn acFLR' id='syncBtn'>Sync</div>"
 		+ "<div class='ac-fontMedium' id='dir'></div>"
 		+ "<div><div class='acNewdirInp'><input type='text' id='newdirInp'></input></div>"
@@ -637,8 +643,12 @@ AC.PopForm("AC.Config", {
 	},
 	
 	display : function(data){
-		var x = data.dir.endsWith("/") ? data.dir.substring(0, data.dir.length - 1) : data.dir;
-		data.xdir = x.split("/");
+		if (!data.dir) {
+			data.xdir = [];
+		} else {
+			var x = data.dir.endsWith("/") ? data.dir.substring(0, data.dir.length - 1) : data.dir;
+			data.xdir = x.split("/");
+		}
 		this.config = data;
 		this._urlPInp.val(this.config.urlP);
 		this._urlTInp.val(this.config.urlT);
@@ -649,6 +659,8 @@ AC.PopForm("AC.Config", {
 		this.enBtns();
 		var t = new AC.HB();
 		t.append("<div class='acPath'>");
+		t.append("<div class='acDirname ac-fontMedium2B' data-index='-1'>Ordinateur</div>");
+		t.append("<div class='acDirsep ac-fontMedium2'>/</div>");
 		for(var i = 0; i < data.xdir.length; i++){
 			if (i)
 				t.append("<div class='acDirsep ac-fontMedium2'>/</div>");
@@ -658,7 +670,10 @@ AC.PopForm("AC.Config", {
 		t.flush(this._content.find("#dir"));
 		APP.oncl(this, this._content.find(".acDirname"), function(target){
 			var n = parseInt(target.attr("data-index"), 10);
-			this.updConfigDir(data.xdir.slice(0, n + 1).join("/") + "/");
+			if (n == -1){
+				this.updConfigDir("");
+			} else 
+				this.updConfigDir(data.xdir.slice(0, n + 1).join("/") + "/");
 		});
 		this.getSubDirs();
 	},
@@ -698,11 +713,11 @@ $.Class("AC.Main", {
 	
 	lib1 : {P:"Production", T:"Test", D:"Développement"},
 
-	lib2 : {P:"Partiel", C:" "},
+	lib2 : {P:"Partiel", C:" ", A:"Abandon"},
 
 	html : "<div class='acLFL'>"
 		
-		+ "<div class='ac-fontMediumB acBGGris'>Dumps existants</div>"
+		+ "<div class='ac-fontMediumB acBGGris' id='acCurrentDir'></div>"
 		+ "<table class='acT2t'>"
 		+ "<tr class='acTR1'><td class='ac-fontMediumBI ac33'>Serveurs</td>"
 		+ "<td class='ac-fontMediumBI'>Partiel</td>"
@@ -711,7 +726,7 @@ $.Class("AC.Main", {
 		
 		+ "<div class='acSpace2'></div>"
 		
-		+ "<div class='ac-fontMediumB acBGGris' id='acCurrentDumpT'>(aucun dump sélectionné)</div>"
+		+ "<div class='ac-fontMediumB acBGGris' id='acCurrentDumpT'>(aucune sauvegarde sélectionnée)</div>"
 		+ "<div class='ac-fontMedium' id='cdFiltre'></div>"
 		+ "<table class='acT2t'>"
 		+ "<tr class='acTR1'><td class='ac-fontMediumBI'>Lignes</td>"
@@ -780,6 +795,7 @@ $.Class("AC.Main", {
 		}, "Lecture de la configuration");
 		
 		this._work.html(this.constructor.html);
+		this._titleDir = this._work.find("#acCurrentDir");
 		this._titleCD = this._work.find("#acCurrentDumpT");
 		this._cdFiltre = this._work.find("#cdFiltre");
 		this._contCD = this._work.find("#acCurrentDumpC");
@@ -798,7 +814,16 @@ $.Class("AC.Main", {
 	
 	display : function(){
 		APP.btnEnable(this._configuration, true);
-		this.getSubDirs();
+		if (!APP.config.dir) {
+			this._titleDir.html("(aucun répertoire de sauvegarde déclaré)");
+			this._titleDir.removeClass("acPTR");
+			this._contD.html("");
+		} else {
+			this._titleDir.html("Sauvegardes existantes (cliquer pour rafraîchir)");
+			APP.oncl(this, this._titleDir, this.getSubDirs);
+			this._titleDir.addClass("acPTR");
+			this.getSubDirs();
+		}
 	},
 	
 	getSubDirs : function(){
@@ -827,14 +852,16 @@ $.Class("AC.Main", {
 				continue;
 			var dh = APP.editDH(d.substring(1,15), 1);
 			this.dumps.push(d);
-			t.append("<tr class='acTR1' data-index='" + d + "'>" + "<td class='ac-fontMedium ac33'>" + ptd + "</td>");
+			var cl = AC.Run.hasNom(d) ? " acBRed" : "";
+			t.append("<tr class='acTR1' data-index='" + d + "'>" + 
+					"<td class='ac-fontMedium ac33" + cl + "'>" + ptd + "</td>");
 			t.append("<td class='ac-fontMedium'>" + pc + "</td>");
 			t.append("<td class='ac-fontMedium ac40'>" + dh + "</td></tr>");
 		}
 		t.append("</table>");
 		t.flush(this._contD);
 		if (this.currentDump) {
-			var path = APP.config.dir.join("/") + "/";
+			var path = APP.config.dir;
 			if (path != this.currentDumpPath || this.dumps.indexOf(this.currentDump) == -1) {
 				this.resetCurrentDump();
 			} else {
@@ -1139,6 +1166,14 @@ $.Class("AC.Main", {
 $.Class("AC.Run", {
 	libs : {P:"Production", T:"Test", D:"Développement"},
 	all : {P:null, T:null, D:null},
+	hasNom : function(nom){
+		for(v in this.all) {
+			var x = this.all[v];
+			if (x && x.run && x.run.nom == nom)
+				return true;
+		}
+		return false;
+	},
 	start : function() {
 		for(v in this.all)
 			this.all[v] = new AC.Run(v);
@@ -1218,7 +1253,11 @@ $.Class("AC.Run", {
 });
 
 AC.PopForm("AC.RunForm", {
-	html : "<div class='ac-fontMedium'>"
+	html : 	"<div id='processInfo'></div>"
+		+ "<div class='ac-fontMedium acSpace2' id='svgrest'></div>",
+		
+	htmlS : "<div class='acSpace2 ac-fontLargeBI'>Sauvegarde :</div>"
+	+ "<div class='acSpace2 ac-fontMedium'>"
 	+ "<table><tr class='acTR1'><td class='ac-fontMedium acTD40'>Version postérieure à :</td>"
 	+ "<td ><input type='text' id='fversion'></input></td></tr>"
 	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Lignes dont l'ID commence par :</td>"
@@ -1226,34 +1265,76 @@ AC.PopForm("AC.RunForm", {
 	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Colonnes dont l'ID commence par :</td>"
 	+ "<td ><input type='text' id='fcolonnes'></input></td></tr>"
 	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Types de cellules dont le nom commence par :</td>"
-	+ "<td ><input type='text' id='ftypes'></input></td></tr><table></div>"
+	+ "<td ><input type='text' id='ftypes'></input></td></tr></table></div>"
 	
-	+ "<div class='acSpace2' id='processInfo'></div>"
 
 }, {
 	init : function(run){
 		this.run = run;
 		var t = new AC.HB();
 		t.append(this.constructor.html);
-		this._super(t, this.run.nom, "???");
+		this._super(t, this.run.nom, 2);
+		this._validerG.html("Abandon");
+		this._sr = this._content.find("#svgrest");
 		this._pi = this._content.find("#processInfo");
 		this._fv = this._content.find("#fversion");
 		this._fc = this._content.find("#fcolonnes");
 		this._fl = this._content.find("#flignes");
 		this._ft = this._content.find("#ftypes");
 		APP.oncl(this, this._valider, this.doIt);
-		this.setValider();
+		APP.oncl(this, this._validerG, this.abandon);
+		this.onmessage();
+	},
+	
+	displaySR : function(){
+		var nom = AC.Main.current.currentDump;
+		var dir = APP.config.dir;
+		this._valider.html("Sauvegarder");
+		this._validerG.css("display", "none");
+		if (!dir) {
+			this._sr.html("<div class='ac-fontLargeB'>Pas de répertoire de sauvegarde déclaré. "
+					+ "Ni sauvegarde, ni restauration ne sont possibles.</div>");
+			this._valider.css("display", "none");
+			this._validerG.css("display", "none");
+			return;
+		}
+		var t = new AC.HB();
+		if (!nom || !nom.endsWith("C")) {
+			t.append("<div class='ac-fontLargeB'>Pas de sauvegarde COMPLETE sélectionnée. "
+					+ "Aucune restauration n'est possible.</div><div class='acSpace22'></div>");
+		} else {
+			t.append("<div class='acSpace2 ac-fontLargeBI'>Restauration :</div>");
+			t.append("<div class='ac-fontLargeB'>La sauvegarde COMPLETE [" + nom + "] est sélectionnée. "
+					+ "Sa restauration est possible.</div>");
+			t.append("<div class='ac-fontLargeB acRed'>Restaurer REMPLACE TOUTES les données mémorisées.<br>"
+					+ "Confirmer cette DANGEREUSE opération en refrappant le code ci-après (valider en appuyant sur Entrée) : ");
+			this.code = "" + Math.floor(Math.random() * (this.run.ptd == "P" ? 1000000 : 10000));
+			t.append("" + this.code + "</div><input type='text' id='vcode'></input><div class='acSpace22'></div>");
+		}
+		t.append(this.constructor.htmlS);
+		t.flush(this._sr);
+		var self = this;
+		var inp = this._sr.find("#vcode");
+		inp.off(APP.KEYUP).on(APP.KEYUP, function(event){
+			APP.NOPROPAG(event);
+			if (event.keyCode == 13 && inp.val() == self.code)
+				self.newRest();
+		});
 	},
 	
 	setValider : function(){
 		var run = this.run.run;
 		if (!run) {
-			this._valider.html("Sauvegarder");
+			this.displaySR();
 		} else {
 			if (run.pause){
+				this._sr.css("display", "none");
 				this._valider.html("Reprise");
+				this._validerG.css("display", "block");
 			} else {
+				this._sr.css("display", "none");
 				this._valider.html("Pause");
+				this._validerG.css("display", "none");
 			}
 		}
 	},
@@ -1270,23 +1351,29 @@ AC.PopForm("AC.RunForm", {
 //		int size = 0;
 //		long totalSize = 0;
 		var data = this.run.run;
-		var t = new AC.HB();
-		t.append("<div><i>Path :</i><b>" + data.path + "</b></div>");
-		t.append("<div><i>Nom :</i><b>" + data.nom + "</b></div>");
-		t.append("<div><i>Opération :</i><b>" + AC.Run.encours[data.encours] + "</b></div>");
-		t.append("<div><b>" + (data.pause ? (data.err ? "En erreur" : "En pause") : "En exécution") + "</b></div>");
-		if (data.phase != 1)
-			t.append("<div><i>Phase initiale</i></div>");
-		else
-			t.append("<div><i>Lignes traitées :</i><b>" + data.nbc + " sur " + data.nbt + "</b></div>");
-		var vol = Math.floor(data.totalSize / 1000000);
-		var volk = Math.floor(data.totalSize / 1000);
-		vol = data.totalSize == 0 ? "0o" : (vol == 0 ? 
-				(volk == 0 ? "" + data.totalSize + "o" : ("" + volk + "Ko")) : ("" + vol + "Mo"));
-		t.append("<div><i>Volume traité :</i><b>" + vol + "</b></div>");
-		if (data.err)
-			t.append("<div><i>Erreur :</i><b>" + data.err + "</b></div>");
-		t.flush(this._pi);
+		if (data) {
+			var t = new AC.HB();
+			t.append("<div><i>Path :</i><b>" + data.path + "</b></div>");
+			t.append("<div><i>Nom :</i><b>" + data.nom + "</b></div>");
+			t.append("<div><i>Opération :</i><b>" + AC.Run.encours[data.encours] + "</b></div>");
+			t.append("<div><b>" + (data.pause ? (data.err ? "En erreur" : "En pause") : "En exécution") + "</b></div>");
+			if (data.phase != 1)
+				t.append("<div><i>Phase initiale</i></div>");
+			else
+				t.append("<div><i>Lignes traitées :</i><b>" + data.nbc + " sur " + data.nbt + "</b></div>");
+			var vol = Math.floor(data.totalSize / 1000000);
+			var volk = Math.floor(data.totalSize / 1000);
+			vol = data.totalSize == 0 ? "0o" : (vol == 0 ? 
+					(volk == 0 ? "" + data.totalSize + "o" : ("" + volk + "Ko")) : ("" + vol + "Mo"));
+			t.append("<div><i>Volume traité :</i><b>" + vol + "</b></div>");
+			if (data.encours == 3) {
+				t.append("<div><i>Nombre de cellules restaurées :</i><b>" + data.cells + "</b></div>");
+				t.append("<div><i>Nombre d'items restaurées :</i><b>" + data.nodes + "</b></div>");
+			}
+			if (data.err)
+				t.append("<div><i>Erreur :</i><b>" + data.err + "</b></div>");
+			t.flush(this._pi);
+		}
 		this.setValider();
 	},
 	
@@ -1302,7 +1389,19 @@ AC.PopForm("AC.RunForm", {
 			}
 		}
 	},
-	
+
+	newRest : function(){
+		var filtre = {
+				version : APP.normDH(this._fv.val()),
+				lignes : this._fl.val(),
+				colonnes : this._fc.val(),
+				types : this._ft.val()
+		}
+		APP.send("NewRest", {path:APP.config.dir, ptd:this.run.ptd, nom:AC.Main.current.currentDump}, 
+				function(err, data){
+			}, "Nouvelle restauration");
+	},
+
 	save : function(){
 		var filtre = {
 				version : APP.normDH(this._fv.val()),
@@ -1316,29 +1415,20 @@ AC.PopForm("AC.RunForm", {
 
 	reprise : function(){
 		APP.send("RepriseDump", {ptd:this.run.ptd}, function(err, data){
-		}, "Reprise de la sauvegarde");
+		}, "Reprise de l'opération");
 	},
 
 	pause : function(){
-		var filtre = {
-				version : APP.normDH(this._fv.val()),
-				lignes : this._fl.val(),
-				colonnes : this._fc.val(),
-				types : this._ft.val()
-		}
 		APP.send("PauseDump", {ptd:this.run.ptd}, function(err, data){
-		}, "Pause de la sauvegarde");
+		}, "Pause de l'opération");
 	},
 
 	abandon : function(){
-		var filtre = {
-				version : APP.normDH(this._fv.val()),
-				lignes : this._fl.val(),
-				colonnes : this._fc.val(),
-				types : this._ft.val()
-		}
-		APP.send("NewDump", {path:APP.config.dir, ptd:this.run.ptd, filtre:filtre}, function(err, data){
-		}, "Nouvelle Sauvegarde");
+		var self = this;
+		APP.send("AbandonDump", {ptd:this.run.ptd}, function(err, data){
+			if (!err)
+				self.close();
+		}, "Abandon de l'opération");
 	},
 
 	close : function(){

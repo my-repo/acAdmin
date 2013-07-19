@@ -1,13 +1,12 @@
 package fr.alterconsos.admin;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 public class Main implements IMain {
 	public static final Main main = new Main();
@@ -43,6 +42,8 @@ public class Main implements IMain {
 		Event.register(NewDump.class);
 		Event.register(PauseDump.class);
 		Event.register(RepriseDump.class);
+		Event.register(AbandonDump.class);
+		Event.register(NewRest.class);
 
 		// Event.register(Personnes.class, new TypeToken<ArrayList<Personne>>() {}.getType());
 
@@ -67,6 +68,8 @@ public class Main implements IMain {
 		int nbt = 0;
 		String err;
 		int size = 0;
+		int cells = 0;
+		int nodes = 0;
 		long totalSize = 0;
 	}
 
@@ -160,7 +163,10 @@ public class Main implements IMain {
 			run.nom = arg.nom;
 			run.nbc = arg.nbc;
 			run.nbt = arg.nbt;
+			run.cells = arg.cells;
+			run.nodes = arg.nodes;
 			run.phase = arg.phase;
+			run.pause = arg.pause;
 			run.totalSize = arg.totalSize;
 			run.err = arg.err;
 			run.size = arg.size;
@@ -299,6 +305,36 @@ public class Main implements IMain {
 		}
 	}
 	
+	public static class NewRest implements IEvent {
+		String path;
+		String ptd;
+		String nom;
+		
+		@Override
+		public Object process() throws Exception {
+			Config cfg = config();
+			FS fs = new FS(cfg.dir);
+			String path = fs.path();
+			if (!path.equals(cfg.dir))
+				cfg.chgDir(path);
+			Run run = cfg.run(ptd);
+			if (run != null)
+				throw new Bridge.AppEx("Sauvegarde / restauration en cours pour le serveur " + ptd);
+			run = new Run();
+			run.path = path;
+			run.encours = 3;
+			run.nom = nom;
+			run.nbc = 0;
+			run.nbt = 0;
+			run.phase = 0;
+			run.ptd = ptd;
+			run.err = null;
+			run.totalSize = 0;
+			cfg.updRun(run);
+			new Process(ptd, run, null, cfg.pwd(ptd), cfg.url(ptd));
+			return null;
+		}
+	}
 	
 	public static class NewDump implements IEvent {
 		String path;
@@ -342,7 +378,21 @@ public class Main implements IMain {
 		
 		@Override
 		public Object process() throws Exception {
-			Process.get(ptd).stopIt();
+			Process p = Process.get(ptd);
+			if (p != null)
+				p.stopIt();
+			else {
+				Config cfg = config();
+				Run run = cfg.run(ptd);
+				if (run != null) {
+					run.pause = true;
+					try {
+						Main.config().updRun(run);
+					} catch (Exception e1) {
+						Bridge.ex(e1);
+					}
+				}
+			}
 			return null;
 		}
 	}
@@ -365,6 +415,28 @@ public class Main implements IMain {
 			run.pause = false;
 			cfg.updRun(run);
 			new Process(ptd, run, filtre, cfg.pwd(ptd), cfg.url(ptd));
+			return null;
+		}
+	}
+
+	public static class AbandonDump implements IEvent {
+		String ptd;
+		
+		@Override
+		public Object process() throws Exception {
+			Config cfg = config();
+			Run run = cfg.run(ptd);
+			if (run == null)
+				throw new Bridge.AppEx("Abandon de sauvegarde / restauration impossible (pas encours) pour le serveur " + ptd);
+			Process p = Process.get(ptd);
+			if (p != null)
+				throw new Bridge.AppEx("Abandon de sauvegarde / restauration impossible (en exécution) pour le serveur " + ptd);
+			if (run.encours != 3) {
+				File af = new File(run.path + run.nom);
+				File nf = new File(run.path + run.nom.substring(0, run.nom.length() -1) + "A");
+				af.renameTo(nf);
+			}
+			cfg.closeRun(run);
 			return null;
 		}
 	}

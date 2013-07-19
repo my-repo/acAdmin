@@ -1,8 +1,11 @@
 package fr.alterconsos.admin;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -84,7 +87,7 @@ public class Process extends Thread {
 
 	public void run() {
 		try {
-			if (run.encours == 1 || run.encours == 2)
+			if (run.encours != 3)
 				sauvegarde();
 			else
 				restauration();
@@ -105,6 +108,8 @@ public class Process extends Thread {
 			String msg = (run.encours == 1 || run.encours == 2 ? "Sauvegarde " : "Restauration ") + ptd 
 					+ (stop ? " mise en pause. " : " terminée avec succès. ") 
 					+ run.nbc + "/" + run.nbt + " ligne(s). Volume total : " + x;
+			if (run.encours == 3)
+				msg += ". Nombre de cellules : " + run.cells + ". Nombre d'items : " + run.nodes + ".";
 			Bridge.log(msg);
 		} catch (Exception e) {
 			run.err = Bridge.exc(e);
@@ -150,9 +155,36 @@ public class Process extends Thread {
 		}
 	}
 
+	public void restauration() throws Exception {
+		if (stop)
+			return;
+		lignes = new JsonFile<String[]>(run.path + run.nom + "/lignes.json", String[].class)
+				.get();
+		if (run.phase == 0) {
+			if (lignes.length == 0)
+				return;
+			run.totalSize = 0;
+			run.nbt = lignes.length;
+			run.nbc = 0;
+			run.phase = 1;
+			Main.config().updRun(run);
+		}
+		while (run.nbc < run.nbt) {
+			if (stop)
+				return;
+			String ligne = lignes[run.nbc];
+			Status status = load(ligne);
+			run.totalSize += status.bytes;
+			run.cells += status.cells;
+			run.nodes += status.nodes;
+			run.nbc++;
+			Main.config().updRun(run);
+		}
+	}
+
 	private String[] listLines() throws Exception {
 		byte[] respb = post(setArgs("linesS", filtre != null ? filtre.lignes : null, 
-				null, filtre != null ? filtre.version : 0, null), false);
+				null, filtre != null ? filtre.version : 0, null), null, false);
 		String resp = new String(respb, "UTF-8");
 		if (!resp.startsWith("$")) {
 			new JsonFile<String[]>(run.path + run.nom + "/lignes.json", null).set(resp);
@@ -179,7 +211,7 @@ public class Process extends Thread {
 		return sb.toString().getBytes("UTF-8");
 	}
 
-	private byte[] post(byte[] args, boolean hasHeader) throws Exception {
+	private byte[] post(byte[] args, byte[] file, boolean hasHeader) throws Exception {
 		URLConnection connection;
 		try {
 			connection = new URL(url + "dumpload").openConnection();
@@ -189,6 +221,8 @@ public class Process extends Thread {
 		connection.setDoOutput(true);
 		OutputStream os = connection.getOutputStream();
 		os.write(args);
+		if (file != null)
+			os.write(file);
 		os.close();
 		InputStream is = connection.getInputStream();
 		byte[] buf = new byte[4096];
@@ -215,8 +249,7 @@ public class Process extends Thread {
 		byte[] resp = post(setArgs("dumpS", ligne, 
 				filtre != null ? filtre.colonnes : null, 
 				filtre != null ? filtre.version : 0, 
-				filtre != null ? filtre.types : null),
-				true);
+				filtre != null ? filtre.types : null), null, true);
 		this.size = resp.length - this.header.length();
 		File zf = new File(run.path + run.nom + "/.temp.zip");
 		FileOutputStream zos = new FileOutputStream(zf);
@@ -225,8 +258,42 @@ public class Process extends Thread {
 		zf.renameTo(new File(run.path + run.nom + "/" + ligne + "_" + this.header + ".zip"));
 	}
 
-	public void restauration() throws Exception {
+	private Status load(String ligne) throws Exception {
+		byte[] file = getBytes(run.path, run.nom, ligne);
+		byte[] resp = post(setArgs("load", ligne, null, 0, null), file, false);
+		String text = new String(resp, "UTF-8");
+		if (text.startsWith("$"))
+			throw new Bridge.AppEx(text);
+		Status status = new Gson().fromJson(text, Status.class);
+		return status;
+	}
+	
+	private static class Status {
+		int bytes;
+		int cells;
+		int nodes;
+	}
 
+	private byte[] getBytes(String path, String nom, String ligne) throws IOException {
+		File d = new File(path + "/" + nom);
+		for(File f : d.listFiles()){
+			if (f.isFile()){
+				String n = f.getName();
+				if (n.startsWith(ligne + "_") && n.endsWith(".zip")){
+					int l = (int) f.length();
+					if (l != 0) {
+						BufferedInputStream is = new BufferedInputStream(
+								new FileInputStream(f));
+						byte[] buf = new byte[l];
+						is.read(buf);
+						is.close();
+						return buf;
+					} else
+						return new byte[0];
+				}
+			}
+		}
+		return new byte[0];
 	}
 
 }

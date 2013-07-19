@@ -7,6 +7,8 @@ import java.util.ArrayList;
 public class FS {
 	
 	public static String[] path2Strings(String path){
+		if (path == null || path.equals(""))
+			return new String[0];
 		String p = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
 		return p.split("/");
 	}
@@ -59,6 +61,8 @@ public class FS {
 	
 	public String path(){
 		String[] d = dir();
+		if (d.length == 0)
+			return "";
 		StringBuffer sb = new StringBuffer();
 		for(String s : d)
 			sb.append(s).append("/");
