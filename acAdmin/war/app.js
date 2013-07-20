@@ -1174,6 +1174,14 @@ $.Class("AC.Run", {
 		}
 		return false;
 	},
+	hasSvgEncours : function(nom){
+		for(v in this.all) {
+			var x = this.all[v];
+			if (x && x.run && x.run.nom == nom && (x.run.encours == 1 || x.run.encours == 2))
+				return true;
+		}
+		return false;
+	},
 	start : function() {
 		for(v in this.all)
 			this.all[v] = new AC.Run(v);
@@ -1266,7 +1274,6 @@ AC.PopForm("AC.RunForm", {
 	+ "<td ><input type='text' id='fcolonnes'></input></td></tr>"
 	+ "<tr class='acTR1'><td class='ac-fontMedium acTD40'>Types de cellules dont le nom commence par :</td>"
 	+ "<td ><input type='text' id='ftypes'></input></td></tr></table></div>"
-	
 
 }, {
 	init : function(run){
@@ -1299,7 +1306,7 @@ AC.PopForm("AC.RunForm", {
 			return;
 		}
 		var t = new AC.HB();
-		if (!nom || !nom.endsWith("C")) {
+		if (!nom || !nom.endsWith("C") || AC.Run.hasSvgEncours(nom)) {
 			t.append("<div class='ac-fontLargeB'>Pas de sauvegarde COMPLETE sélectionnée. "
 					+ "Aucune restauration n'est possible.</div><div class='acSpace22'></div>");
 		} else {
