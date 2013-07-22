@@ -1,86 +1,92 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html><head>
-<meta content="text/html; charset=ISO-8859-1" http-equiv="content-type"><title>Sauvegarde / Restauration</title>
 
-<link rel="stylesheet" href="general.css" type="text/css">
-</head>
-<body>
+<meta content="text/html; charset=UTF-8" http-equiv="content-type"><title>Sauvegarde / Restauration</title>
+
+<link rel="stylesheet" href="general.css" type="text/css"></head><body>
 <h1>Sauvegarde / Restauration</h1>
 <h2>Serveurs</h2>
-Trois serveurs sont prédéfinis :<br>
+Trois serveurs sont prÃ©dÃ©finis :<br>
 <ul>
 <li><span style="font-weight: bold;">P - Production</span>
-: hébergé sur le nuage ;</li>
+: hÃ©bergÃ© sur le nuage ;</li>
 <li><span style="font-weight: bold;">T - Test</span>
-: hébergé en local pour des tests ;</li>
+: hÃ©bergÃ© en local pour des tests ;</li>
 <li><span style="font-weight: bold;">D -
-Développement</span> : hébergé dans l'environnement Eclipse.</li>
+DÃ©veloppement</span> : hÃ©bergÃ© dans l'environnement Eclipse.</li>
 </ul>
 Chaque serveur :<br>
 <ul>
-<li>est défini par son URL commençant par http://... ou
-https://... ;</li>
+<li>est dÃ©fini par son URL commenÃ§ant par <span class="fixed">http://...</span> ou
+<span class="fixed">https://...</span> ;</li>
 <li>a un mot de passe d'administration ;</li>
-<li>peut avoir a un instant donné, a) soit une sauvegarde en
+<li>peut avoir a un instant donnÃ©, a) soit une sauvegarde en
 cours, b) soit une restauration en cours, soit rien rien en cours.</li>
 </ul>
 <h2>Sauvegardes</h2>
-Une sauvegarde est identifiée par :<br>
+Une sauvegarde est identifiÃ©e par :<br>
 <ul>
 <li><span style="font-weight: bold;">P / T / D</span>
-: le serveur dont les données ont été sauvegardées ;</li>
+: le serveur dont les donnÃ©es ont Ã©tÃ© sauvegardÃ©es ;</li>
 <li><span style="font-weight: bold;">la date-heure
 en seconde du lancement</span> de la sauvegarde (20130714123055);</li>
-<li><span style="font-weight: bold;">X / A / P / C</span>
+<li><span style="font-weight: bold;">A / P / C</span>
 son statut:</li>
 <ul>
-<li><span style="font-weight: bold;">X - en
-exécution</span> : la liste des lignes à sauver est constituée
-(fichier lignes.json) et de 0 à N de celles-ci sont déjà sauvegardées ;</li>
+
 <li><span style="font-weight: bold;">A -
-abandonnée</span> : un incident non récupérable ou toute autre
-raison a entraîne&nbsp;la décision d'interruption définitive.
-Certaines lignes sont sauvées ;</li>
+abandonnÃ©e</span> : un incident non rÃ©cupÃ©rable ou toute autre
+raison a entraÃ®ne&nbsp;la dÃ©cision d'interruption dÃ©finitive.
+Certaines lignes sont sauvÃ©es, d'autres pas (peu utilisable) ;</li>
 <li><span style="font-weight: bold;">P -
-partielle</span> : la sauvegarde s'est terminée normalement mais
-elle était partielle (seulement certaines lignes) ;</li>
-<li><span style="font-weight: bold;">C - complète</span>
-: la sauvegarde de toutes les lignes s'est terminée normalement.</li>
+partielle</span> : la sauvegarde s'est terminÃ©e normalement mais
+elle Ã©tait partielle (seulement certaines lignes selon le filtre de sÃ©lection) ;</li>
+<li><span style="font-weight: bold;">C - complÃ¨te</span>
+: la sauvegarde de toutes les lignes s'est terminÃ©e normalement.</li>
 </ul>
 </ul>
-Le répertoire d'une sauvegarde contient :<br>
+Le rÃ©pertoire d'une sauvegarde contient :<br>
 <ul>
 <li>un fichier .zip par ligne
-sauvée&nbsp;nommé&nbsp;<span class="fixed">C.1._20130713142432666.zip</span>
-où,</li>
+sauvÃ©e&nbsp;nommÃ©&nbsp;<span class="fixed">C.1._20130713142432666.zip</span>
+oÃ¹,</li>
 <ul>
 <li><span class="fixed">C.1.</span>
 est l'identifiant de la ligne ;</li>
 <li><span class="fixed">20130713142432666</span>
-est sa version (date / heure en ms);</li><li>chaque ZIP contient une entrée par colonne de la forme <span class="fixed">id_type_version</span> (id de la colonne, son type et sa version). Les items sont stockés en json (un array ou un objet pour chaque type d'item).</li>
+est sa version (date / heure en ms);</li><li>chaque ZIP contient une entrÃ©e par colonne de la forme <span class="fixed">id_type_version</span> (id de la colonne, son type et sa version). Les items sont stockÃ©s en json (un array ou un objet pour chaque type d'item).</li>
 </ul>
 <li>un fichier <span class="fixed">lignes.json</span> qui est un array donnant la liste des
-identifiants des lignes à sauver;</li>
-<li>un fichier <span class="fixed">filtre.json</span> qui décrit le filtre sur les
-éléments à sauver dans le cas d'une sauvegarde partielle :</li>
+identifiants des lignes Ã  sauver;</li>
+<li>un fichier <span class="fixed">filtre.json</span> qui dÃ©crit le filtre sur les
+Ã©lÃ©ments Ã  sauver dans le cas d'une sauvegarde partielle :</li>
 <ul>
 <li><span class="fixed">"version" : 20130713142432666</span>&nbsp;
-- seules les lignes, colonnes et items ayant une version postérieure
-sont sauvés ;</li>
+- seules les lignes, colonnes et items ayant une version postÃ©rieure
+sont sauvÃ©s ;</li>
 <li><span class="fixed">"lignes" : "C.1. D"</span>
 - seules les lignes dont les identifiants commencent par l'un de ces
-mots (séparés par un espace), sont sauvées. En cas d'absence, toutes ;</li>
+mots (sÃ©parÃ©s par un espace), sont sauvÃ©es. En cas d'absence, toutes ;</li>
 <li><span class="fixed">"colonnes" : "0. 203."</span>
 - filtre sut les identifiants de colonnes ;</li>
 <li><span class="fixed">"types" : "Calendrier
 LivrG"</span> - filtre sur les types de colonnes ;</li><li>(il n'y a pas de filtre
 sur les items d'une cellule, sauf la version).</li>
 </ul>
-</ul><h2>Etat courant de l'application</h2>A un instant donné une seule
-instance au plus de l'application peut être en exécution : elle utilise
-le port 8887 pour l'échange entre la partie calcul (java) et la partie
-UI (HTML / Javascript s'exécutant dans Chrome).<br>Son état courant est mémorisé dans user.home sous le nom .acAdmin.json qui contient :<br><ul><li><span class="fixed">urlP urlT urlD</span> : les urls des trois serveurs ;</li><li><span class="fixed">pwdP pwdT pwdD</span> : les mots de passe des trois serveurs ;</li><li><span class="fixed">dir</span> : le path du dernier répertoire de sauvegard utilisé ;</li><li><span class="fixed">runP runT runD</span> : les états des exécutions en cours (éventuelles) sur les trois serveurs avec :</li><ul><li><span class="fixed">"encours" : "S"</span> - S (sauvegarde), R (restauration)</li><li><span class="fixed">"path" : "D:/..."</span> - path du répertoire hébergeant la sauvegarde ;</li><li><span class="fixed">"nom" : "P...C"</span> - nom de cette sauvegarde ;</li><li><span class="fixed">"nblignes" : 12</span> - nombre de lignes déjà traitées ;</li><li><span class="fixed">"exception" : "..."</span> - libellé de l'exception éventuelle si l'opération est suspendue en erreur ou interruption.</li></ul></ul><h2>Exécutions</h2>Une
-opération de sauvegarde / restauration peut être reprise autant de fois
-que nécessaire, chaque reprise tentant de sauvegarder / restaurer les
-lignes restantes.<br>Le trafic normal est interrompu durant ces exécutions, depuis le lancement jusqu'à la fin définitive (succès ou abandon).<br>
+</ul><h2>Etat courant de l'application</h2>A un instant donnÃ© une seule
+instance au plus de l'application peut Ãªtre en exÃ©cution : elle utilise
+le port 8887 pour l'Ã©change entre la partie calcul (java) et la partie
+UI (HTML / Javascript s'exÃ©cutant dans Chrome).<br>Son Ã©tat courant est mÃ©morisÃ© dans user.home sous le nom .acAdmin.json qui contient :<br><ul><li><span class="fixed">urlP urlT urlD</span> : les urls des trois serveurs ;</li><li><span class="fixed">pwdP pwdT pwdD</span> : les mots de passe des trois serveurs ;</li><li><span class="fixed">dir</span> : le path du dernier rÃ©pertoire de sauvegard utilisÃ© ;</li><li><span class="fixed">runP runT runD</span> : les Ã©tats des exÃ©cutions en cours (Ã©ventuelles) sur les trois serveurs avec :</li><ul><li><span class="fixed">"encours" : 1, 2 ou 3</span> -&nbsp;sauvegarde partielle, sauvegarde totale, restauration;</li><li><span class="fixed">"path" : "D:/..."</span> - path du rÃ©pertoire hÃ©bergeant la sauvegarde ;</li><li><span class="fixed">"nom" : "P...C"</span> - nom de cette sauvegarde ;</li><li><span class="fixed">"nbc" : 12</span> - nombre de lignes dÃ©jÃ  traitÃ©es ;</li><li><span class="fixed">"nbt" : 12</span> - nombre de lignes total Ã  traiter ;</li><li><span class="fixed">"totalSize" </span>: 234567 - nombre de bytes sauvÃ© / restaurÃ©s ;</li><li><span class="fixed">"cell" </span>: 23 - nombre de cellules restaurÃ©es;</li><li><span class="fixed">"nodes"</span> : 54 - nombre total de nodes dans ces cellules restaurÃ©es;</li><li><span class="fixed">"err" : "..."</span> - libellÃ© de l'exception Ã©ventuelle si l'opÃ©ration est suspendue en erreur ou interruption.</li></ul></ul><h2>ExÃ©cutions</h2>Une
+opÃ©ration de sauvegarde / restauration peut Ãªtre reprise autant de fois
+que nÃ©cessaire, chaque reprise tentant de sauvegarder / restaurer les
+lignes restantes.<br>Une
+exÃ©cution est "en pause" lorsqu'elle n'est pas en exÃ©cution : elle peut
+repasser, a) soit en exÃ©cution (Ãªtre relancÃ©e), b) soit en abandon
+(elle disparaÃ®t, n'est plus en cours). En cas d'abandon d'une
+sauvegarde le nom de son rÃ©pertoire est chngÃ©, sa derniÃ¨re lettre passe
+de "S" Ã  "A".<br>Le trafic normal est interrompu durant ces exÃ©cutions, depuis le lancement jusqu'Ã  la fin dÃ©finitive (succÃ¨s ou abandon).<br><br>Une
+restauration se fait pour un serveur en prenant les donnÃ©es dans une
+sauvegarde complÃ¨te, non abandonnÃ©e, d'un serveur (celui-lÃ  ou un
+autre). Toutes les donnÃ©es actuelles sont remplacÃ©es.<br><h2>Mot de passe d'administration</h2>Ce mot de passe peut Ãªtre dÃ©clarÃ© depuis l'URL :<br><span class="fixed">https:// ... /admin/pwd.html</span><br>Ceci requiert d'avoir un login Google reconnu comme administrateur de l'application.<br><br>En test utiliser l'URL:<br><span class="fixed">http://192.168.0.1:8080/adminpwd.html</span><br>pour simuler le login Ã  un compte Google administrateur.<br>
+<br><br>
 </body></html>
