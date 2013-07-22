@@ -1261,7 +1261,9 @@ $.Class("AC.Run", {
 });
 
 AC.PopForm("AC.RunForm", {
-	html : 	"<div id='processInfo'></div>"
+	html : 	"<div><div class='ac-fontMediumB acBtn' id='onBtn'>Serveur ON</div>&nbsp;&nbsp;"
+		+ "<div class='ac-fontMediumB acBtn' id='offBtn'>Serveur OFF</div></div>"
+		+ "<div class='acSpace22'></div><div id='processInfo'></div>"
 		+ "<div class='ac-fontMedium acSpace2' id='svgrest'></div>",
 		
 	htmlS : "<div class='acSpace2 ac-fontLargeBI'>Sauvegarde :</div>"
@@ -1282,6 +1284,8 @@ AC.PopForm("AC.RunForm", {
 		t.append(this.constructor.html);
 		this._super(t, this.run.nom, 2);
 		this._validerG.html("Abandon");
+		this._on = this._content.find("#onBtn");
+		this._off = this._content.find("#offBtn");
 		this._sr = this._content.find("#svgrest");
 		this._pi = this._content.find("#processInfo");
 		this._fv = this._content.find("#fversion");
@@ -1290,6 +1294,14 @@ AC.PopForm("AC.RunForm", {
 		this._ft = this._content.find("#ftypes");
 		APP.oncl(this, this._valider, this.doIt);
 		APP.oncl(this, this._validerG, this.abandon);
+		APP.oncl(this, this._on, function(){
+			APP.send("OnOff", {ptd:this.run.ptd, onoff:true}, function(err, data){
+				}, "OnOff");
+		});
+		APP.oncl(this, this._off, function(){
+			APP.send("OnOff", {ptd:this.run.ptd, onoff:false}, function(err, data){
+				}, "OnOff");
+		});
 		this.onmessage();
 	},
 	

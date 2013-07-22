@@ -44,6 +44,7 @@ public class Main implements IMain {
 		Event.register(RepriseDump.class);
 		Event.register(AbandonDump.class);
 		Event.register(NewRest.class);
+		Event.register(OnOff.class);
 
 		// Event.register(Personnes.class, new TypeToken<ArrayList<Personne>>() {}.getType());
 
@@ -463,7 +464,20 @@ public class Main implements IMain {
 			return new JsonFile<Filtre>(path + "/filtre.json", Filtre.class).get();
 		}
 	}
-	
+
+	public static class OnOff implements IEvent {
+		boolean onoff;
+		String ptd;
+
+		@Override
+		public Object process() throws Exception {
+			Config cfg = config();
+			String ret = Process.onOff(onoff, cfg.pwd(ptd), cfg.url(ptd));
+			Bridge.log(ret, ret.startsWith("$"));
+			return null;
+		}
+	}
+
 
 	/*******************************************************/
 

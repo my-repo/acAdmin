@@ -20,6 +20,33 @@ public class Process extends Thread {
 	private static Process procT;
 	private static Process procD;
 
+	public static String onOff(boolean onoff, String pwd, String url) throws Exception{
+		URLConnection connection;
+		try {
+			connection = new URL(url + "dumpload").openConnection();
+		} catch (Exception e) {
+			throw new Bridge.AppEx("Connexion au serveur impossible");
+		}
+		connection.setDoOutput(true);
+		StringBuffer sb = new StringBuffer();
+		String pwd2 = toSHA1(pwd + "00");
+		sb.append("{\"at\":-1,\"ad\":0,\"ap\":\"").append(pwd2).append("\",\"op\":\"")
+		.append(onoff ? "on" : "off").append("\" }\n");
+		OutputStream os = connection.getOutputStream();
+		os.write(sb.toString().getBytes("UTF-8"));
+		os.close();
+		InputStream is = connection.getInputStream();
+		byte[] buf = new byte[4096];
+		ByteArrayOutputStream os2 = new ByteArrayOutputStream(16192);
+		int l = 0;
+		while ((l = is.read(buf)) > 0)
+			os2.write(buf, 0, l);
+		is.close();
+		byte[] res = os2.toByteArray();
+		os2.close();
+		return new String(res, "UTF-8");
+	}
+	
 	public static String toSHA1(String convertme) {
 		try {
 			MessageDigest md = MessageDigest.getInstance("SHA");
